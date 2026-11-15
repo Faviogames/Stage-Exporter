@@ -1,0 +1,156 @@
+Nuestra version del exportador (uso personal; no compartir resultados, segun lo acordado con Sando Rally)
+
+No modifica la herramienta: _internal\wr.py la ejecuta anadiendo nuestros datos y mejoras.
+
+USO
+  WRC to ACR Stage Exporter.exe                  la ventana: rallys de WRC Generations por pais (izquierda), sus tramos (centro) y
+                                    el tramo elegido (derecha) con su tarjeta y acciones:
+                                    - "Exportar tramo": se construye SOLO ese tramo (si es nuevo se anade al pack con
+                                      todas las mejoras); el resto del pack se reutiliza. Al terminar se instala el pack.
+                                    - "Nombre e imagenes": nombre en el menu, tarjeta 1720x448, fondo 1325x922, lobby
+                                      170x100; "Imagenes del pais": logo 485x218 y fondo 406x737 de "Imported <pais>".
+                                      Cualquier imagen se ajusta sola al tamano.
+                                    - "Quitar del pack" y "Aplicar al pack" (nombres e imagenes en 1 min, sin exportar).
+                                    Abajo: barra de progreso con la fase, el porcentaje y el tiempo que queda; "Detalles"
+                                    muestra el registro y "Cancelar" para la exportacion (el pack instalado no cambia).
+                                    Tramos de nieve (Suecia...): neumaticos FullSnow como Livigno.
+
+  En el juego cada pais es una localizacion propia: "Imported Spain", "Imported Greece", ...
+
+  Linea de comandos (desde la carpeta de la herramienta):
+    _internal\wrcg2acr-worker.exe -m wr export es_ss1          exportar un tramo de nuevo (el resto se reutiliza)
+    _internal\wrcg2acr-worker.exe -m wr remove es_ss4          quitar un tramo del pack
+    _internal\wrcg2acr-worker.exe -m wr pack                   tramos del pack y su ultima exportacion
+    _internal\wrcg2acr-worker.exe -m wr repack                 rehacer tablas y pack sin exportar ningun tramo (1 min)
+    _internal\wrcg2acr-worker.exe -m wr run gr_ss3 es_ss4 es_ss1 --install   pack de estos tramos, todos de nuevo
+    _internal\wrcg2acr-worker.exe -m wr list [texto]           tramos de WRCG (id, nombre, rally, km, superficie)
+    _internal\wrcg2acr-worker.exe -m wr add ES2_SPAIN/SS1      crear la configuracion de un tramo (--force: regenerarla)
+    _internal\wrcg2acr-worker.exe -m wr_verify WrcgEsSS1      comprobar un tramo y todas las tablas del pack construido
+  Despues de cambiar nuestro codigo o la configuracion de un tramo, exporta de nuevo los tramos afectados.
+  Tramos "no soportado": super especiales urbanas como Barcelona (Montjuic), sin piezas de carretera en WRCG.
+
+MEJORAS (por tramo, en custom\data\stage_builds\<tramo>.json; las de un tramo nuevo vienen todas activadas)
+  acr_surface / tyres          asfalto: superficie, puesta a punto y neumaticos TarmacSnow
+  weather_distribution, air_temperature_c, sky {latitude, longitude, utc_offset, month, day}
+                               clima y sol segun el lugar (zona horaria con horario de verano, mes del rally)
+  crowd, crowd_tag             publico de ACR en los puntos de espectadores de WRCG, bengalas rojas, sonido (los
+                               reverse sin espectadores propios en WRCG usan los del tramo de ida)
+  ground_cover_style           vegetacion de otro pais, p. ej. Arganil "greece" (cesped y plantas de Elatia/Loutraki)
+  ground_cover, rvt            cesped y plantas (18 tipos, densidad de Alsacia), bosque lejano, RVT para el color;
+                               cada planta se ajusta al suelo en toda su huella (sin quedar en el aire en los taludes)
+  finish_marshal               llegada como en ACR: la meta de cronometraje en los postes STOP de WRCG y, 60-150 m
+                               despues (junto a la carpa del comisario de WRCG), el STOP donde se para el coche, con el
+                               comisario; el recorrido de juego sigue la carretera de WRCG pasada la ruta para que quepa
+  replay_cameras               camaras de repeticion: cada una cubre el tramo en el que ve el coche (terreno, muros,
+                               casas y arboles en cuenta) y la siguiente entra cuando lo pierde; todas siguen al coche
+  lamp_lights                  luz nocturna en las farolas: un foco en la cabeza de cada farola apuntando al
+                               suelo (25 cd, alcance 22 m, 3300 K); antes quedaba 7 m por encima y casi sin luz
+  skids                        derrapes: decals de Munster sobre la trazada, una cadena por curva cerrada (de la
+                               entrada a la salida), con las estrias giradas a lo largo de cada decal y su inclinacion
+  tyre_marks                   (desactivado) marcas horneadas en el asfalto a lo largo de la trazada
+  service_park_yaw_deg         orientacion del coche en el parque de asistencia, en grados del mundo: 175.6 en
+                               todos, como Francia (la camara del parque mira siempre en la misma direccion);
+                               service_park_yaw_offset_deg (antiguo) la giraba respecto a la carretera
+  (siempre)                    rotondas y cruces: el anillo de una rotonda irregular con coordenadas alrededor de
+                               el, las piezas de cruce opacas y los extremos que se unen a otra carretera sin
+                               fundirse (antes se veia el terreno en las uniones); UV de mundo en los cruces
+  (siempre)                    LOD de WRCG mal nombrados (valla con nieve de Suecia, nieve de las casas) puestos en orden;
+                               las tarjetas recortadas que WRCG guarda como un LOD (pajas de las balas de Panzerplatte)
+                               van con el LOD mas detallado, por las dos caras y con recorte alfa (antes flotaban)
+  (siempre)                    partes abiertas que WRCG dibuja por las dos caras (casas de Suecia) duplicadas del reves;
+                               banderas de WRCG sin mastil (colgaban en el aire) fuera
+  (siempre)                    personas sentadas en las sillas de las mesas de salida y de control de parada de WRCG
+                               (publico de ACR con su asiento SM_SeatA y animaciones de silla; la silla de WRCG se quita)
+  (siempre)                    rendimiento como en los tramos de ACR (wr_perf.py): los objetos dejan de dibujarse segun
+                               su tamano (100 m los muy pequenos, 200 m como ACR, 350/700/1500 m; tramos de valla, muro
+                               o guardarrail al menos 700 m; casas, rocas grandes y piezas de carretera sin limite); el
+                               cesped desaparece a 120-150 m (arbustos 160-300 m) sin sombras ni iluminacion por campos
+                               de distancia (antes ~490.000 plantas se dibujaban a cualquier distancia)
+  (siempre)                    bordes de carretera mas definidos (franja de fundido 0.8 m como maximo), decals de
+                               suciedad con profundidad minima 0.4 m (no trepan por los muros) y textura hasta 2048,
+                               lineas de la carretera con recorte alfa y pegadas al asfalto (sin reborde claro)
+  skinned_meshes               lineas de la carretera (continuas, discontinuas, pasos de cebra...), bordillos/cunetas
+                               de hormigon y muros de piedra de WRCG (con colision y sonido de impacto)
+  road_albedo                  oscurecer el asfalto (0.6 = color x0.6; 1 = como en WRCG). Tramos de asfalto: 0.6
+  (nieve)                      tramos de nieve: la nieve azulada de WRCG pasa a blanco neutro como la de Livigno;
+                               pinos -> abetos de Montecarlo con su capa de nieve siempre puesta, robles -> alerces
+                               desnudos nevados (wr_snowtrees.py)
+  surface_overrides            superficies de WRCG cambiadas solo en este tramo, p. ej. Arganil:
+                               {"PAVE": "PM_SurfaceConcrete"} (adoquines como el asfalto mas resbaladizo de ACR)
+  solid_props                  objetos de WRCG que conservan su colision aunque sean movibles en WRCG, p. ej.
+                               ["HAYBALL"] (bolardos blancos de plastico de Arganil)
+  breakable_signs              senales de WRCG que pasan a ser la senal fisica de ACR (se cae al tocarla, casi sin
+                               frenar el coche; BC_PhysicsActor_C de Munster), p. ej. Pietrosella ["FR_PANEL_R03"]
+                               (las de 50 km/h) (wr_breakables.py)
+  service_park_tent            la carpa del equipo del parque de asistencia de Alsacia alrededor del coche, en un
+                               claro llano cerca de la salida (wr_servicepark.py); sin carpa, el coche se pone a
+                               service_park_yaw_deg
+  camera_focus_m               saltos con camara de repeticion propia (por defecto: los BIG_JUMP del copiloto)
+  graph_props                  objetos del grafo propio del tramo en WRCG que la herramienta dejaba fuera por su
+                               grupo de carga, p. ej. Riudecanyes {"tag": "SS3"}: balas de paja de las rotondas,
+                               barandilla de la presa, muro del castillo, pancartas ("names": solo esos nombres)
+  graph_props_solid            de esos, los que llevan colision hecha con su malla (p. ej. ["HAYSTACK", "RAILING"])
+  location                     localizacion en el juego ("Imported <pais>"; por defecto el pais del rally)
+  track_name, stage_name       nombres en el menu (la ventana los edita)
+  Imagenes: custom\images\<tramo>\card|background|lobby.png y custom\images\Wrcg<Pais>\logo|background.png
+  Siempre: parrilla de salida de WRCG, materiales de muro en vallas y muros (sonido de impacto), piezas de
+  carretera irregulares y objetos deformados que antes paraban la exportacion, los cruces de carretera de WRCG
+  (INTERSECTIONBUILDSTEP: sin ellos quedaba un agujero en la carretera, p. ej. Riudecanyes s 1500 m) y los
+  adoquines (PAVE) como asfalto (el material de adoquines de ACR es de tipo nieve y patinaba).
+  Tambien siempre:
+  - tuneles: la carretera de dentro ya no se pinta en el monte de encima; dentro lleva su propia malla de asfalto
+    (wr_tunnel.py); el monte de encima lleva arbustos y arboles repartidos (wr_groundcover.py)
+  - los pajaros en vuelo de WRCG se quitan (quedaban congelados)
+  - cables electricos largos y gruesos (tendidos, alta tension, SPLINESPAWNERLINES) a 3 cm (wr_lods.py)
+  - agua de WRCG a la altura de la carretera: el lago a su nivel, sin las celdas de agua encima del asfalto
+  - carteles de ACR de pre-meta, meta lanzada y STOP en nuestra meta y control (tramos con "dressing": false)
+  - salida como en ACR: el coche aparece unos 90 m antes del comisario (carretera de WRCG hacia atras) si WRCG
+    no tiene carril de salida propio; el comisario espera en la carretera, hace senas y se aparta
+  - senales y postes pequenos de WRCG fisicos (balizas, paneles medicos/radio, palos de nieve, banderines):
+    su malla con una caja de colision y el actor fisico de ACR (wr_breakables.make_physical)
+  - cesped: nada en los huecos de la carretera de los cruces ni en el carril del recorrido sobre ellos; vegetacion
+    tambien alrededor de la carretera antes de la salida y despues de la meta
+
+ARCHIVOS
+  installs.json                               rutas de WRC Generations y Assetto Corsa Rally
+  pack.json                                   tramos del pack instalado (los gestiona la ventana)
+  data\stage_builds\*.json                    nuestros tramos (es_ss4 Savalla, es_ss1 Riudecanyes, it_ss1 Ronde,
+                                              sus reverse es_ss4r/es_ss1r/it_ss1r, panzerplatte, se_ss3 Savar...)
+  data\wrcg_vegetation_map.merge.json         reglas de vegetacion de ES2_SPAIN (otros niveles: reglas automaticas)
+  ..\_internal\wr.py                          lanzador (datos propios, comandos, apartar el pack instalado)
+  ..\_internal\wr_ui.py                       Stage Exporter (la ventana)
+  ..\_internal\wr_assets\                   icono y lanzador (StageStudio.cs; wr build-exe crea WRC to ACR Stage Exporter.exe)
+  ..\_internal\wr_pack.py                     pack de tramos exportados de uno en uno (reutiliza la ultima exportacion)
+  ..\_internal\wr_stages.py                   tramos de WRCG -> configuracion (lugares, zona horaria, mes, clima)
+  ..\_internal\wr_fixes.py                    enganches en los pasos de la herramienta (y localizaciones por pais)
+  ..\_internal\wr_skinned.py                  lineas, cunetas y muros de WRCG (SPLINEMESHSKINNERBUILDSTEP)
+  ..\_internal\wr_groundcover.py              cesped, plantas y bosque lejano (especies, densidades, materiales)
+  ..\_internal\wr_rvt.py                      RVT (Munster + dos griegas)
+  ..\_internal\wr_crowd.py                    publico (+ bengalas y sonido)
+  ..\_internal\wr_finish.py                   comisario de parada (de Hafren South), meta en los postes STOP, STOP
+                                              y comisario en el control de parada (junto a la carpa de WRCG),
+                                              recorrido tras la meta, carteles de meta de ACR
+  ..\_internal\wr_cameras.py                  camaras de repeticion
+  ..\_internal\wr_lights.py                   luz nocturna en las farolas (blueprint de luz de Monte Carlo)
+  ..\_internal\wr_lods.py                     LOD de WRCG en orden de detalle, cables electricos mas finos
+  ..\_internal\wr_breakables.py               senales rompibles (la senal fisica de ACR, o la de WRCG con caja)
+  ..\_internal\wr_tunnel.py                   asfalto dentro de los tuneles
+  ..\_internal\wr_servicepark.py              carpa del parque de asistencia (de AlsaceServicePark)
+  ..\_internal\wr_perf.py                     distancias de dibujado de objetos y cesped (rendimiento)
+  ..\_internal\wr_setup.py                    instalador: juegos, datos de ACR (meta, farolas, derrapes, RVT), lanzador
+  ..\_internal\wr_make_installer.py           crea dist\StageStudio_mejoras (+ .zip): el paquete para Sando
+  data\allowed_stages.json                    (solo en el paquete) tramos que ofrece la instalacion; los demas no salen
+  ..\_internal\wr_snowtrees.py                arboles nevados de ACR en los tramos de nieve
+  ..\_internal\wr_skids.py                    marcas de derrape (decal de Munster)
+  ..\_internal\wr_verify.py / wr_tojson.py    comprobacion del pack / conversion de assets a JSON
+  ..\work\wr_pack_keys.json                   ultima exportacion de cada tramo en la cache de la herramienta
+
+Datos de ACR extraidos que usan las mejoras (en work\acr, se crearon una vez):
+  wr_cells_legacy\...\9XYWDVYVYCEUG004BCIGGGZ1X.json                         llegada de Hafren South (comisario)
+  wr_stock_cells\...\MonteCarloS1Bollene\...\1ETRLVT1729OA30AHK5CGZOQ7.json   farola con luz (Monte Carlo)
+  wr_lampbp\...                                                             blueprint de esa farola (posicion del foco)
+  wr_alsace\...\AlsaceS2Munster\...\1XXMH9FJVC7ZDS8TC9W2RQY3Z.json          decal de derrapes y senal fisica de
+                                                                            50 km/h (Munster)
+  wr_servicepark\...\Levels\AlsaceServicePark.json                          parque de asistencia de Alsacia (carpa)
+  wr_prop_rvt.json                                                          plantilla RuntimeVirtualTextures
+Limite: el JSON de un nivel debe quedar por debajo de ~1 GB (UaTool); el cesped va hasta 600.000 instancias.

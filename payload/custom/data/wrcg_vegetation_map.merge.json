@@ -1,0 +1,548 @@
+{
+ "locations": {
+  "ES2_SPAIN": {
+   "_note": "Catalunya (local addition, for ES2_SPAIN/SS4 Savalla): 33 WRCG types -> ACR Mediterranean foliage (Aleppo pine for Scots/stone pines, olive, cypress, smoke tree for round broadleaves, black maple for beech/plane, boxthorn shrubs, Greek grasses). Rules copied from the equivalent Acropolis / Portugal / Mexico ones; first guess.",
+   "replay_types": {
+    "Olive": {
+     "species": "olive",
+     "meshes": [
+      0,
+      1,
+      2
+     ],
+     "band": 600,
+     "fit": 1.0,
+     "clamp": [
+      0.6,
+      1.4
+     ],
+     "k": 1,
+     "clear": 2.0,
+     "why": "as GR_ACROPOLIS OLIVETREE"
+    },
+    "Olive_2": {
+     "species": "olive",
+     "meshes": [
+      0,
+      1,
+      2
+     ],
+     "band": 600,
+     "fit": 1.0,
+     "clamp": [
+      0.6,
+      1.4
+     ],
+     "k": 1,
+     "clear": 2.0,
+     "why": "as GR_ACROPOLIS OLIVETREE"
+    },
+    "Olive_3": {
+     "species": "olive",
+     "meshes": [
+      0,
+      1,
+      2
+     ],
+     "band": 600,
+     "fit": 1.0,
+     "clamp": [
+      0.6,
+      1.4
+     ],
+     "k": 1,
+     "clear": 2.0,
+     "why": "as GR_ACROPOLIS OLIVETREE"
+    },
+    "ScottPine_01": {
+     "species": "pine",
+     "meshes": [
+      0,
+      1,
+      2
+     ],
+     "band": 700,
+     "fit": 1.0,
+     "clamp": [
+      0.6,
+      1.4
+     ],
+     "k": 1,
+     "clear": 2.0,
+     "why": "as GR_ACROPOLIS PINE"
+    },
+    "ScottPine_02": {
+     "species": "pine",
+     "meshes": [
+      0,
+      1,
+      2
+     ],
+     "band": 700,
+     "fit": 1.0,
+     "clamp": [
+      0.6,
+      1.4
+     ],
+     "k": 1,
+     "clear": 2.0,
+     "why": "as GR_ACROPOLIS PINE"
+    },
+    "ScottPine_04": {
+     "species": "pine",
+     "meshes": [
+      0,
+      1,
+      2
+     ],
+     "band": 700,
+     "fit": 1.0,
+     "clamp": [
+      0.6,
+      1.4
+     ],
+     "k": 1,
+     "clear": 2.0,
+     "why": "as GR_ACROPOLIS PINE"
+    },
+    "StonePine_01": {
+     "species": "pine",
+     "meshes": [
+      0,
+      1,
+      2
+     ],
+     "band": 700,
+     "fit": 1.0,
+     "clamp": [
+      0.6,
+      1.4
+     ],
+     "k": 1,
+     "clear": 2.0,
+     "why": "as GR_ACROPOLIS STONEPINE_01"
+    },
+    "StonePine_2": {
+     "species": "pine",
+     "meshes": [
+      0,
+      1,
+      2
+     ],
+     "band": 700,
+     "fit": 1.0,
+     "clamp": [
+      0.6,
+      1.4
+     ],
+     "k": 1,
+     "clear": 2.0,
+     "why": "as GR_ACROPOLIS STONEPINE_01"
+    },
+    "SugarRound_01": {
+     "species": "oak",
+     "meshes": [
+      0
+     ],
+     "band": 600,
+     "fit": 1.0,
+     "clamp": [
+      0.7,
+      1.6
+     ],
+     "k": 1,
+     "clear": 2.0,
+     "why": "as GR_ACROPOLIS SUGAR_ROUND_01"
+    },
+    "SugarRound_02": {
+     "species": "oak",
+     "meshes": [
+      0
+     ],
+     "band": 600,
+     "fit": 1.0,
+     "clamp": [
+      0.7,
+      1.6
+     ],
+     "k": 1,
+     "clear": 2.0,
+     "why": "as GR_ACROPOLIS SUGAR_ROUND_01"
+    },
+    "Hazel": {
+     "species": "oak",
+     "meshes": [
+      0
+     ],
+     "band": 600,
+     "fit": 1.0,
+     "clamp": [
+      0.7,
+      1.6
+     ],
+     "k": 1,
+     "clear": 2.0,
+     "why": "as PT2_PORTUGAL Hazel"
+    },
+    "Beech": {
+     "species": "maple",
+     "meshes": [
+      0,
+      1,
+      2
+     ],
+     "band": 700,
+     "fit": 1.0,
+     "clamp": [
+      0.7,
+      1.4
+     ],
+     "k": 1,
+     "clear": 2.0,
+     "why": "as PT2_PORTUGAL Oak_small_01"
+    },
+    "Beech_Far": {
+     "species": "maple",
+     "meshes": [
+      0,
+      1,
+      2
+     ],
+     "band": 1200,
+     "fit": 1.0,
+     "clamp": [
+      0.7,
+      1.4
+     ],
+     "k": 1,
+     "clear": 2.0,
+     "why": "as PT2_PORTUGAL Oak_small_01 {\"band\": 1200}"
+    },
+    "Platane_01": {
+     "species": "maple",
+     "meshes": [
+      0,
+      1,
+      2
+     ],
+     "band": 900,
+     "fit": 1.0,
+     "clamp": [
+      0.7,
+      1.4
+     ],
+     "k": 1,
+     "clear": 2.0,
+     "why": "as PT2_PORTUGAL Bignay"
+    },
+    "Italiancypress": {
+     "species": "cypress",
+     "meshes": [
+      0,
+      1
+     ],
+     "band": 600,
+     "fit": 1.0,
+     "clamp": [
+      0.6,
+      1.4
+     ],
+     "k": 1,
+     "clear": 1.5,
+     "why": "as GR_ACROPOLIS CYPRES"
+    },
+    "Italiancypress_02": {
+     "species": "cypress",
+     "meshes": [
+      0,
+      1
+     ],
+     "band": 600,
+     "fit": 1.0,
+     "clamp": [
+      0.6,
+      1.4
+     ],
+     "k": 1,
+     "clear": 1.5,
+     "why": "as GR_ACROPOLIS CYPRES"
+    },
+    "Italiancypress_03": {
+     "species": "cypress",
+     "meshes": [
+      0,
+      1
+     ],
+     "band": 600,
+     "fit": 1.0,
+     "clamp": [
+      0.6,
+      1.4
+     ],
+     "k": 1,
+     "clear": 1.5,
+     "why": "as GR_ACROPOLIS CYPRES"
+    },
+    "Cypress_Bush_01": {
+     "species": "shrub",
+     "meshes": [
+      0
+     ],
+     "band": 200,
+     "fit": 1.0,
+     "clamp": [
+      0.4,
+      1.0
+     ],
+     "k": 1,
+     "clear": 0.8,
+     "keep": 0.5,
+     "why": "as GR_ACROPOLIS CYPRES_P"
+    },
+    "Cypress_Bush_02": {
+     "species": "shrub",
+     "meshes": [
+      0
+     ],
+     "band": 200,
+     "fit": 1.0,
+     "clamp": [
+      0.4,
+      1.0
+     ],
+     "k": 1,
+     "clear": 0.8,
+     "keep": 0.5,
+     "why": "as GR_ACROPOLIS CYPRES_P"
+    },
+    "Cypress_Bush_03": {
+     "species": "shrub",
+     "meshes": [
+      0
+     ],
+     "band": 200,
+     "fit": 1.0,
+     "clamp": [
+      0.4,
+      1.0
+     ],
+     "k": 1,
+     "clear": 0.8,
+     "keep": 0.5,
+     "why": "as GR_ACROPOLIS CYPRES_P"
+    },
+    "Azalea_Patch": {
+     "species": "shrub",
+     "meshes": [
+      0
+     ],
+     "band": 200,
+     "fit": 1.0,
+     "clamp": [
+      0.4,
+      1.0
+     ],
+     "k": 1,
+     "clear": 0.8,
+     "keep": 0.5,
+     "why": "as GR_ACROPOLIS AZALEA_P_01"
+    },
+    "Rosemary": {
+     "species": "shrub",
+     "meshes": [
+      0,
+      1
+     ],
+     "band": 250,
+     "fit": 1.0,
+     "clamp": [
+      0.5,
+      1.2
+     ],
+     "k": 1,
+     "clear": 1.0,
+     "keep": 0.7,
+     "why": "as GR_ACROPOLIS Rosemary"
+    },
+    "Sagebrush": {
+     "species": "shrub",
+     "meshes": [
+      0
+     ],
+     "band": 150,
+     "fit": 1.0,
+     "clamp": [
+      0.3,
+      0.8
+     ],
+     "k": 1,
+     "clear": 0.6,
+     "keep": 0.7,
+     "why": "as PT2_PORTUGAL SAGEBUSH"
+    },
+    "AFrican_Bush": {
+     "species": "shrub",
+     "meshes": [
+      0,
+      1
+     ],
+     "band": 300,
+     "fit": 1.0,
+     "clamp": [
+      0.5,
+      1.3
+     ],
+     "k": 1,
+     "clear": 1.0,
+     "why": "as GR_ACROPOLIS AZALEa_BigBush"
+    },
+    "Bramble_S_04": {
+     "species": null,
+     "meshes": [
+      1
+     ],
+     "band": 90,
+     "fit": 1.0,
+     "clamp": [
+      0.7,
+      1.4
+     ],
+     "k": 3,
+     "jitter": 0.8,
+     "clear": 0.3,
+     "why": "as MX_MEXICO Bramble_S_04 | dropped: the ground cover (wr_groundcover.py) replaces WRCG's grass; grass_green's MI_GrassClump01 needs the RVT_MainMenu RVT and rendered dark"
+    },
+    "Grass_Height": {
+     "species": null,
+     "meshes": [
+      0
+     ],
+     "band": 60,
+     "fit": 1.0,
+     "clamp": [
+      0.8,
+      1.4
+     ],
+     "k": 1,
+     "clear": 0.3,
+     "keep": 0.7,
+     "why": "as PT2_PORTUGAL Grass_Height_Pack_1 | dropped: the ground cover (wr_groundcover.py) replaces WRCG's grass; grass_green's MI_GrassClump01 needs the RVT_MainMenu RVT and rendered dark"
+    },
+    "GRASS_CUT_Field": {
+     "species": null,
+     "meshes": [
+      0,
+      1
+     ],
+     "band": 70,
+     "fit": 1.0,
+     "clamp": [
+      1.0,
+      2.0
+     ],
+     "k": 1,
+     "clear": 0.3,
+     "keep": 0.8,
+     "why": "as GR_ACROPOLIS GRASS_PACK | dropped: the ground cover (wr_groundcover.py) replaces WRCG's grass; grass_green's MI_GrassClump01 needs the RVT_MainMenu RVT and rendered dark"
+    },
+    "Weed_Grass_Pack_02": {
+     "species": null,
+     "meshes": [
+      0
+     ],
+     "band": 60,
+     "fit": 1.0,
+     "clamp": [
+      1.0,
+      1.8
+     ],
+     "k": 1,
+     "clear": 0.3,
+     "keep": 0.7,
+     "why": "as PT2_PORTUGAL Weed_Grass_Pack_02 | dropped: the ground cover (wr_groundcover.py) replaces WRCG's grass; grass_green's MI_GrassClump01 needs the RVT_MainMenu RVT and rendered dark"
+    },
+    "WEED_GRASS_03": {
+     "species": null,
+     "meshes": [
+      0
+     ],
+     "band": 60,
+     "fit": 1.0,
+     "clamp": [
+      1.0,
+      1.8
+     ],
+     "k": 1,
+     "clear": 0.3,
+     "keep": 0.7,
+     "why": "as PT2_PORTUGAL Weed_Grass_Pack_02 | dropped: the ground cover (wr_groundcover.py) replaces WRCG's grass; grass_green's MI_GrassClump01 needs the RVT_MainMenu RVT and rendered dark"
+    },
+    "LittleGrass": {
+     "species": null,
+     "meshes": [
+      0
+     ],
+     "band": 60,
+     "fit": 1.0,
+     "clamp": [
+      0.8,
+      1.2
+     ],
+     "k": 1,
+     "clear": 0.3,
+     "keep": 0.5,
+     "why": "as PT2_PORTUGAL GrassLittle_1 | dropped: the ground cover (wr_groundcover.py) replaces WRCG's grass; grass_green's MI_GrassClump01 needs the RVT_MainMenu RVT and rendered dark"
+    },
+    "GrassLittle": {
+     "species": null,
+     "meshes": [
+      0
+     ],
+     "band": 60,
+     "fit": 1.0,
+     "clamp": [
+      0.8,
+      1.2
+     ],
+     "k": 1,
+     "clear": 0.3,
+     "keep": 0.5,
+     "why": "as PT2_PORTUGAL GrassLittle_1 | dropped: the ground cover (wr_groundcover.py) replaces WRCG's grass; grass_green's MI_GrassClump01 needs the RVT_MainMenu RVT and rendered dark"
+    },
+    "Grass_Dry_02": {
+     "species": null,
+     "meshes": [
+      1
+     ],
+     "band": 70,
+     "fit": 1.0,
+     "clamp": [
+      1.0,
+      2.0
+     ],
+     "k": 1,
+     "clear": 0.3,
+     "keep": 0.7,
+     "why": "as GR_ACROPOLIS GRASS_PACK_YELLOW | dropped: the ground cover (wr_groundcover.py) replaces WRCG's grass; grass_green's MI_GrassClump01 needs the RVT_MainMenu RVT and rendered dark"
+    },
+    "Desert_rock_11": {
+     "species": "rock",
+     "meshes": [
+      0,
+      1
+     ],
+     "band": 60,
+     "fit": 1.0,
+     "clamp": [
+      1.5,
+      3.0
+     ],
+     "k": 1,
+     "clear": 0.4,
+     "keep": 0.5,
+     "why": "as GR_ACROPOLIS Peebles_Generic_01 {\"keep\": 0.5, \"band\": 60}"
+    }
+   }
+  }
+ }
+}

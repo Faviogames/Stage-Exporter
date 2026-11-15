@@ -1,0 +1,30 @@
+{
+ "_comment": "Stages this installation offers (wr_stages.allowed); the others are not shown.",
+ "stages": [
+  "GR_ACROPOLIS/SS3",
+  "ES2_SPAIN/SS4",
+  "ES2_SPAIN/SS4R",
+  "ES2_SPAIN/SS1",
+  "ES2_SPAIN/SS1R",
+  "IT_SANREMO/SS1",
+  "IT_SANREMO/SS1R",
+  "SE2_SWEDEN/SS3",
+  "SE2_SWEDEN/SS4",
+  "SSS_DE_PANZERPLATTE/SSS",
+  "PT2_PORTUGAL/SS4",
+  "FR_FRANCECORSE/SS1",
+  "FR_FRANCECORSE/SS1R",
+  "KE_KENYA/SS2",
+  "BE_YPRES/SS1",
+  "BE_YPRES/SS2",
+  "BE_YPRES/ES1",
+  "MX_MEXICO/SS1",
+  "MX_MEXICO/SS2",
+  "MX_MEXICO/ES1",
+  "KE_KENYA/SS1",
+  "KE_KENYA/SS1R",
+  "KE_KENYA/SS2R",
+  "KE_KENYA/ES1",
+  "KE_KENYA/ES1R"
+ ]
+}

@@ -1,0 +1,72 @@
+Stage Exporter - Quick guide
+==========================
+Created by @AlbertPalahi, available on Patreon.
+
+Stage Exporter is an add-on for Sando Rally's Stage Export Tool. It turns WRC Generations stages into one
+Assetto Corsa Rally (ACR) stage pack, and lets you share stages as single ".stage" files.
+
+
+1. WHAT YOU NEED (once)
+-----------------------
+- Sando Rally's Stage Export Tool v0.3.7.
+- This add-on, installed: put the "Stage Exporter" folder next to Sando-Rally-Stage-Export-Tool.exe and run INSTALAR.bat.
+- WRC Generations and Assetto Corsa Rally installed from Steam (builds listed in README_INSTALLER.txt).
+- Then open "WRC to ACR Stage Exporter.exe" (it appears in the tool folder after INSTALAR.bat).
+
+
+2. IMPORT A STAGE  (the most common thing to do)
+------------------------------------------------
+Someone sent you a ".stage" file? You do NOT need to export anything.
+  1. Close Assetto Corsa Rally.
+  2. In Stage Exporter press "Import stage" (orange button, top right).
+  3. Pick the .stage file and confirm. It takes a few minutes: the file is 2-3 GB and is unpacked into the tool.
+  4. The stage now shows "in the pack" in its country list. Import more .stage files the same way if you want.
+  5. Press "Update pack" (top right). In 1-2 minutes it builds ONE pack with all the ticked stages and installs it.
+  6. Start the game. The stages are under "[MOD] <Country>" (for example "[MOD] Spain").
+
+What comes inside a .stage: the built stage, its names and pictures, and its country's description, logo and
+background. Your own country description / logo are never overwritten: the file only fills what you have empty.
+If you already have a stage with the same name, importing replaces it (the old settings are kept as a .bak file).
+Only import files from people you trust: they hold data the tool loads when it builds the pack.
+
+
+3. CHOOSE WHAT GOES IN THE PACK
+-------------------------------
+In the stage list, the STATUS column tells you:
+  - "in the pack" (ticked)   it will be in the pack.
+  - "available" (unticked)   built or imported, but left out.
+  - "not exported"           not built yet.
+  - "not supported"          WRC Generations has no road for it.
+Click the STATUS cell of a built stage to tick or untick it, then press "Update pack".
+Unticking never deletes the stage. Untick everything and press "Update pack" to take the pack out of the game.
+
+
+4. SHARE YOUR OWN STAGE
+-----------------------
+  1. Select a built stage and press "Save as .stage" (right panel; it is grey until the stage is built).
+  2. Send the file (2-3 GB). Keep your own copy as a backup.
+
+
+5. NAMES, IMAGES, DESCRIPTION
+-----------------------------
+- "Name and images" (right panel): the stage's menu name and pictures.
+- "Logo and description" (bottom left): the country's logo, background and description.
+Both are applied with "Update pack"; nothing is exported again.
+
+
+6. EXPORT A STAGE YOURSELF
+--------------------------
+Select a stage and press "Export stage". It is slow (it can take 40 minutes or more) and needs WRC Generations.
+The other stages of the pack are reused, not built again. Keep the PC free while it runs.
+
+
+7. GOOD TO KNOW
+---------------
+- One stage pack at a time: remove any other stage mod from the game's Paks folder, or only one will show up.
+  Stage Exporter always builds a single pack with every ticked stage.
+- Always close ACR before pressing "Update pack", and start the game after it.
+- Language: the "English / Espanol" button (top right) switches it; restart Stage Exporter to apply.
+- If something fails, open "Details" at the bottom of the window. Logs are in work\logs inside the tool folder.
+- Disk space: each built stage takes about 3 GB. "Free up space..." (bottom bar) deletes the cache of the stages you
+  tick; it marks the ones that have a .stage copy next to the tool as safe. Or, once saved as .stage, you can delete
+  the work folder, run INSTALAR.bat again (a few seconds) and import the stage again later.

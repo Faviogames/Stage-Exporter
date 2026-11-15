@@ -1,0 +1,98 @@
+{
+ "_comment": "Local addition (not part of the tool): ES2_SPAIN/SS4 Savalla, built like gr_ss3 (whole TrackSpline, prm road pieces only).",
+ "slug": "es_ss4",
+ "name": "WrcgEsSS4",
+ "wrcg_level": "ES2_SPAIN",
+ "stage_id": "ES2_SPAIN/SS4",
+ "kind": "spline",
+ "anchor": "route_centre",
+ "track_name": "Savallà",
+ "variant_row": "WrcgEsSS4Full",
+ "stage_name": "Savallà",
+ "short_name": "Full",
+ "start_lat_lon": [
+  41.33,
+  1.19
+ ],
+ "weather_row": "Greece",
+ "road_width_m": 7.0,
+ "road_roughness": 235,
+ "vegetation": true,
+ "props": {
+  "include": [
+   "static",
+   "dynamic",
+   "spline",
+   "decor"
+  ]
+ },
+ "dressing": false,
+ "dressing_boards": false,
+ "gantry_region": "Greece",
+ "decals": true,
+ "pre_start_m": 50.0,
+ "start_marshal": true,
+ "terrain_far_grades": [
+  [
+   300,
+   256
+  ],
+  [
+   800,
+   128
+  ]
+ ],
+ "startends_stage": "SS4",
+ "decal_min_roughness": 0.75,
+ "decal_mark_opacity": 0.5,
+ "manual_notes": [
+  "First asphalt port: 5,739 m, TARMAC 5,735 m (PM_SurfaceTarmacSmooth).",
+  "acr_surface / tyres (wr_fixes.py): variant surface, car setup and sectors Tarmac, tyres TarmacSnow (ACR's stock tarmac stages); the builder cloned Hafren South's Gravel / GravelOnly.",
+  "start: the grid node is ES2_SS4_Start_Pos (s 47 m), aliased to Start_Pos by wr_fixes.py; before, the stage started at s 0 with the start marshal 8 m from the car.",
+  "vegetation: WRCG's own instances replayed with the ES2_SPAIN rules of custom/data/wrcg_vegetation_map.merge.json (first guess).",
+  "crowd: ACR spectators on WRCG's PublicMA_* spots of SS4 (wr_crowd.py).",
+  "weather_distribution Greece / air 20 C: dry Mediterranean instead of Hafren's Wales / 5 C.",
+  "ground cover (owner drive, 2026-11-09: 'much more grass, plants and shrubs, like Alsace'; the few plants looked black): wr_groundcover.py, Munster densities on WRCG's grass layers, WRCG's own replayed grass dropped.",
+  "rvt: grass with Munster's RVT materials (owner: grass should take the ground colour, also for a snow version); RVT volume + RVT-only terrain copies with MI_Terrain9MatBlend1005 (wr_rvt.py).",
+  "finish marshal (owner: 'another marshal at the finish that stops the car'): Hafren's BC_StopMarshalEndSequence_C, raw export remapped (wr_finish.py).",
+  "crowd v2 (owner: spectators do not react / look the wrong way): characters face local +Y (was +X, 90 deg off), one id + crowd sound per spawner.",
+  "v4 (owner drive 2026-11-09): denser grass closer to the asphalt and following the slope; red flares in the crowd's front rows; night lights on the 7 MJ_STREETLAMP02 lamps (Monte Carlo's light-only blueprint); replay cameras tracking with tracked focus and zoom rebuilt for our distances; service park point turned 180 deg; skid decals in the corners (Munster's procedural asphalt skids). No bonfires: ACR has no fire/flame effect.",
+  "2026-11-15 (owner: Kenya's map is nearly optimal, enable the rest): auto_crowd, crowd_penalty and support_vehicles on as in ke_ss2; not enabled here: animals, road_tint/terrain_match, decals:false, ground_cover_pebbles (Kenya-specific). Untested on this stage."
+ ],
+ "export": {
+  "vegetation": "replay",
+  "ui_name": "Savallà (RallyRACC Catalunya)",
+  "release": true
+ },
+ "crowd": true,
+ "acr_surface": "Tarmac",
+ "car_setup": "Tarmac",
+ "tyre_degradation": "Low",
+ "weather_distribution": "Greece",
+ "air_temperature_c": 20.0,
+ "ground_cover": true,
+ "rvt": true,
+ "finish_marshal": true,
+ "replay_cameras": true,
+ "lamp_lights": true,
+ "skids": true,
+ "service_park_yaw_deg": 175.6,
+ "crowd_tag": "SS4",
+ "sky": {
+  "latitude": 41.33,
+  "longitude": 1.19,
+  "utc_offset": 2,
+  "month": 10,
+  "day": 20
+ },
+ "road_albedo": 0.6,
+ "skinned_meshes": true,
+ "tyre_marks": false,
+ "auto_crowd": true,
+ "crowd_penalty": true,
+ "support_vehicles": {
+  "ambulance": 1,
+  "security": 1
+ },
+ "far_tree_light": true
+}
