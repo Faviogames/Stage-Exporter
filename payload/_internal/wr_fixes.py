@@ -17,7 +17,13 @@ Stage build settings they read (data/stage_builds/<slug>.json, all optional):
   "finish_marshal": true                Hafren's stop marshal at the finish (wr_finish.py)
   "skinned_meshes": true                WRCG's road lines, gutters and spline walls (wr_skinned.py; default on)
   "road_albedo": 0.6                    the road textures' colour times this (linear), for darker asphalt (default 1)
+  "greece_gravel_dust": true             native Loutraki wheel particles (wr_gravel.py)
+  "tree_visibility_tuning": true        extend selected tall vegetation visibility (wr_perf.py)
+  "gravel_grip_trial_m": [from, to]      local GravelHard-to-GravelFine comparison (wr_gravel.py)
   "tyre_marks": true                    rubber along the racing line baked into the road, as Munster (wr_tyremarks.py)
+  "sign_lighting_m": [from, to]          local advert shadows and brake board visibility, in route metres (wr_lights.py)
+  "water_animated_oceans": ["Ocean_4"]   selected WRCG meshes use ACR's animated water material
+  "water_surface": "<physical material>"  optional material for shallow submerged road triangles
   "location": "Spain"                   ACR location "Imported <location>" (default: the WRCG country)
 """
 import json
@@ -37,6 +43,8 @@ def before(module, args):
     if module == "tools.acrmod.build_stage":
         for slug in [a for a in args if not a.startswith("-")]:
             start_pos_alias(slug)
+            _drop_pacenote_tokens(slug)
+            _drop_rocks(slug)
         import wr_pack
         wr_pack.patch_cache()
         wr_skinned.patch_props(_stage_info)
@@ -64,6 +72,7 @@ def before(module, args):
         _patch_wall_materials()
         _patch_road_grid()
         _patch_road_fringe()
+        _patch_road_seams()
         _patch_decals()
         import wr_roadside
         wr_roadside.patch(_cfg)
@@ -71,6 +80,10 @@ def before(module, args):
         wr_tapeposts.patch_physics(_cfg)
         _patch_sheared_props()
         _patch_water()
+        _patch_no_water()
+        _patch_water_surface()
+        import wr_gravel
+        wr_gravel.patch_grip(_cfg)
         _patch_psi_names()
 
 
@@ -96,6 +109,8 @@ def after(module, args):
         mod = args[args.index("--mod-dir") + 1] if "--mod-dir" in args else "wrcg_stages"
         for slug in [a for a in args if not a.startswith("-") and (WORK.parent / "custom" / "data" / "stage_builds" / f"{a}.json").exists()]:
             _tint_cloth(slug, mod)
+            _light_props(slug, mod)
+            _fix_missing_materials(slug, mod)
     if module == "tools.wrcg.vegetation_replay" and "--stage" in args:
         slug = args[args.index("--stage") + 1]
         cfg = _cfg(slug)
@@ -131,6 +146,132 @@ def _tint_cloth(slug, mod="wrcg_stages"):
         if n:
             c.write_asset(d, tmp / "mi.edit.json", f)
         print(f"    [{slug}] cloth tint: {key} x{list(rgb)} ({'written' if n else 'no tint parameter found'})")
+
+
+def _light_props(slug, mod="wrcg_stages"):
+    """"prop_ao" (universal, 0.5 by default, false = off): every prop material instance of the stage (signs, fences, cars,
+    boards...) gets Simple_AO intensity = this, so the side of an object that faces away from the sun is less dark
+    (owner 2026-11-15, Seyabei: the shaded side of the parked vehicles and of the boards). M_Simple's default for it is
+    NOT known (not readable from the stock asset), 0.5 assumes it is 1; not checked in game."""
+    import copy
+    import tempfile
+    import tools.acrmod.common as c
+    cfg = _cfg(slug) or {}
+    val = cfg.get("prop_ao", 0.5)
+    if val is False or val is None or not cfg.get("name"):
+        return
+    folder = WORK / "acr" / "mods" / mod / "legacy" / "acr" / "Content" / "Environments" / cfg["name"] / "Props" / "Materials"
+    done = skipped = 0
+    for f in sorted(folder.glob("MI_*.uasset")):
+        tmp = Path(tempfile.mkdtemp(prefix="wr_ao_"))
+        try:
+            d = c.asset_json(f, tmp / "mi.json")
+            data = d["Exports"][0]["Data"]
+            sc = next((p for p in data if p["Name"] == "ScalarParameterValues"), None)
+            if sc is None or not sc["Value"]:
+                skipped += 1
+                continue
+            vals = sc["Value"]
+            def pname(item):
+                fl = {x["Name"]: x for x in item["Value"]}
+                return next(x["Value"] for x in fl["ParameterInfo"]["Value"] if x["Name"] == "Name"), fl
+            hit = False
+            for item in vals:
+                n, fl = pname(item)
+                if n == "Simple_AO intensity":
+                    fl["ParameterValue"]["Value"] = float(val)
+                    hit = True
+            if not hit:
+                item = copy.deepcopy(vals[0])
+                n, fl = pname(item)
+                for x in fl["ParameterInfo"]["Value"]:
+                    if x["Name"] == "Name":
+                        x["Value"] = "Simple_AO intensity"
+                fl["ParameterValue"]["Value"] = float(val)
+                vals.append(item)
+                if "Simple_AO intensity" not in d["NameMap"]:
+                    d["NameMap"].append("Simple_AO intensity")
+            c.write_asset(d, tmp / "mi.edit.json", f)
+            done += 1
+        except Exception as e:
+            skipped += 1
+            print(f"    [{slug}] prop AO: {f.name} skipped ({e!r})")
+    print(f"    [{slug}] prop AO: Simple_AO intensity {val} on {done} prop materials ({skipped} skipped)")
+
+
+def _drop_rocks(slug):
+    """"drop_rocks": [{"m": 3401, "radius": 30}]: every stone / rock / pebble of the vegetation (rock, gc_rock, gc_stone...)
+    within radius metres of route metre m is taken out of vegetation/instances.json, so it has neither visual nor
+    collision (owner 2026-11-15, Seyabei m 3401: an almost invisible stone gave a hard hit). The first run keeps the
+    original as instances.before_drop.json (refreshed when a new WRCG export rewrote instances.json) and every run filters
+    that copy, so changing the list always works."""
+    import re
+    import shutil
+    import numpy as np
+    import tools.acrmod.build_stage as bs
+    import wr_scene
+    cfg = _cfg(slug) or {}
+    zones = cfg.get("drop_rocks") or []
+    f = WORK / "wrcg" / slug / "vegetation" / "instances.json"
+    orig = f.with_name("instances.before_drop.json")
+    if not zones or not (f.exists() or orig.exists()):
+        return
+    if not orig.exists() or f.stat().st_mtime_ns > orig.stat().st_mtime_ns:      # a new WRCG export rewrote the file
+        shutil.copyfile(f, orig)
+    import tools.acrmod.stagectx as sc
+    bcfg = bs.load_cfg(slug)                                  # before() runs with no stage context: the core would read another stage's route
+    sc.use(sc.Stage(slug, cfg["name"], cfg["wrcg_level"], str(cfg["stage_id"]).split("/")[-1]))
+    route = np.asarray(bs.route_wrcg(bcfg), float)
+    spots = [(wr_scene.frame(route, float(z["m"]))[0][:2], float(z.get("radius", 30.0))) for z in zones]
+    rx = re.compile(r'\{[^{}]*"species": "([^"]*)"[^{}]*\}')
+    kind = re.compile(r"rock|stone|peb")
+    xy = re.compile(r'"x": (-?[0-9.eE+-]+), "y": (-?[0-9.eE+-]+)')
+    dropped = [0]
+
+    def keep(m):
+        if not kind.search(m.group(1)):
+            return m.group(0)
+        q = xy.search(m.group(0))
+        if q and any(np.hypot(float(q.group(1)) - c[0], float(q.group(2)) - c[1]) <= r for c, r in spots):
+            dropped[0] += 1
+            return "\x00"
+        return m.group(0)
+    text = rx.sub(keep, orig.read_text(encoding="utf-8"))
+    text = re.sub(r",?\s*\x00", "", text).replace("[,", "[")
+    f.write_text(text, encoding="utf-8")
+    import os
+    os.utime(orig, ns=(f.stat().st_atime_ns, f.stat().st_mtime_ns))      # same time: only a newer instances.json counts as new
+    print(f"    [{slug}] drop rocks: {dropped[0]} stones/rocks within {zones} left out of the vegetation")
+
+
+def _fix_missing_materials(slug, mod="wrcg_stages"):
+    """A prop mesh that points to a material instance the core did not write (Seyabei: HOUSE_003 -> MI_WALL, seen as pale
+    default panels, owner 2026-11-15) gets a copy of its sibling MI_<name>_2 (or the first MI_<name>_N)."""
+    import re
+    import tempfile
+    import tools.acrmod.common as c
+    import wr_snowtrees as st
+    cfg = _cfg(slug) or {}
+    if not cfg.get("name"):
+        return
+    legacy = WORK / "acr" / "mods" / mod / "legacy"
+    props = legacy / "acr" / "Content" / "Environments" / cfg["name"] / "Props"
+    mats = props / "Materials"
+    have = {f.stem for f in mats.glob("MI_*.uasset")}
+    for sm in props.glob("SM_*.uasset"):
+        for name in sorted(set(m.decode() for m in re.findall(rb"/Props/Materials/(MI_[A-Za-z0-9_]+)", sm.read_bytes()))):
+            if name in have:
+                continue
+            sib = sorted(n for n in have if re.fullmatch(re.escape(name) + r"_\d+", n))
+            if not sib:
+                print(f"    [{slug}] missing material {name} (used by {sm.stem}): no sibling to copy")
+                continue
+            tmp = tempfile.mkdtemp(prefix="wr_mi_")
+            pkg = f"/Game/Environments/{cfg['name']}/Props/Materials/"
+            d = c.asset_json(mats / f"{sib[0]}.uasset", Path(tmp) / "mi.json")
+            st._clone(d, pkg + sib[0], pkg + name, {}, legacy, tmp)
+            have.add(name)
+            print(f"    [{slug}] missing material {name} (used by {sm.stem}): copy of {sib[0]}")
 
 
 def _on(slug, key):
@@ -874,6 +1015,14 @@ def _add_crowd(dst):
     shift = bs.stage_shift(cfg, route)
     route_ue = pv.wrcg_world_to_ue(route, shift)
     spots_ue = pv.wrcg_world_to_ue(np.array([p for _, p in spots]), shift)
+    try:                                              # hand-placed scene: its spectators (wr_scene.py)
+        import wr_scene
+        more = wr_scene.people_xyz(cfg)
+        if more:
+            spots_ue = np.vstack([spots_ue, pv.wrcg_world_to_ue(np.array(more), shift)])
+            print(f"    [{slug}] scene: {len(more)} spectators added next to the parked vehicles")
+    except Exception as e:
+        print(f"    [{slug}] scene spectators: not added ({type(e).__name__}: {e})")
     if cfg.get("tape_posts") and cfg.get("wrcg_tape_post_physics") is False:  # optional old wood-post replacement
         try:
             import tools.wrcg.prop_instances as pi
@@ -927,16 +1076,23 @@ def _patch_ground_cover_materials():
     vv.MAX_TILT_DEG = wr_groundcover.MAX_TILT_DEG          # the ground cover is laid on the ground up to this tilt
 
     def add_hism_actor(dst, tmpl, *a, **k):
+        import tools.acrmod.stagectx as sc
         import wr_perf
         n0 = len(dst.exports)
         name = str(k.get("name", a[0] if a else ""))
         species = re.sub(r"_\d+(_c\d+)?$", "", name[len(VEG_PREFIX):]) if name.startswith(VEG_PREFIX) else None
         k = wr_perf.veg_kwargs(species, k)                  # ground cover: cull distance, no shadows (wr_perf.py)
+        visibility_tuning = species in {"olive", "oak", "shrub"} and (
+            _cfg(sc.cur().slug) or {}).get("tree_visibility_tuning")
+        if visibility_tuning and (k.get("cull_cm") or 0) > 0:
+            k["cull_cm"] *= 1.25
         out = orig(dst, tmpl, *a, **k)
         wr_perf.veg_after(dst, n0, species)
+        if visibility_tuning and species in {"olive", "oak"} and out.get("hism"):
+            wr_perf.extend_tree_visibility(dst, out["hism"])
         mesh = str(k.get("mesh") or "").split(".")[0]
         mats = wr_groundcover.MATERIALS.get(species) or wr_groundcover.MESH_MATERIALS.get(mesh) or \
-            _snow_tree_materials(k.get("mesh")) or _far_tree_materials(k.get("mesh"))
+            _snow_tree_materials(k.get("mesh")) or _far_tree_materials(k.get("mesh")) or _stone_materials(k.get("mesh"))
         if mats:
             import wr_rvt
             tmpl_p = json.loads(wr_rvt.PROP_RVT.read_text())
@@ -982,6 +1138,11 @@ def _patch_solid_props():
     orig = ic.extra_meshes
 
     def extra_meshes(offset=(0.0, 0.0, 0.0), *a, **k):
+        import inspect
+        import tools.acrmod.stagectx as sc
+        drop = tuple((_cfg(sc.cur().slug) or {}).get("drop_psi") or ())       # "drop_psi": no collision for those props either
+        if drop:
+            k["exclude"] = tuple(k.get("exclude") or inspect.signature(orig).parameters["exclude"].default) + drop
         out = orig(offset, *a, **k)
         cats = k.get("categories", a[0] if a else (0, 1, 2))
         try:
@@ -1071,8 +1232,8 @@ def _patch_solid_props():
 # but not the wall. "graph_props": {"tag": <graph tag>, "names": [psi name parts] or all, "near_m"} adds them;
 # "graph_props_solid": [psi name parts] gives those a collision built from their LOD0 mesh (WRCG has none for them in
 # the stage, they are not in its collision export either).
-GRAPH_PM = (("PLASTIC", "PM_WallPlasticBarrier"), ("RAIL", "PM_WallMetalGuardrail"), ("HAY", "PM_WallHayBale"),
-            ("WALL", "PM_WallRock"))
+GRAPH_PM = (("BUS_01", "PM_WallMetalBigObject"), ("CMN_COMBI", "PM_WallMetalBigObject"), ("PLASTIC", "PM_WallPlasticBarrier"), ("RAIL", "PM_WallMetalGuardrail"), ("HAY", "PM_WallHayBale"),
+            ("WALL", "PM_WallRock"), ("ROCK", "PM_WallRock"))
 
 
 def _graph_props(slug, level, categories, k, collect):
@@ -1198,6 +1359,20 @@ def _patch_graph_props():
                         out = list(out) + ex
             except Exception as e:
                 print(f"    animals: not added ({type(e).__name__}: {e})")
+        if k.get("stage_mask") is not None and out and "static" in tuple(categories):
+            try:                                   # hand-placed scene: parked vehicles (wr_scene.py)
+                import tools.acrmod.stagectx as sc
+                import wr_scene
+                extra = wr_scene.vehicle_props(out[0], _cfg(sc.cur().slug) or {})
+                if extra:
+                    print(f"    scene: {len(extra)} parked vehicles added ({', '.join(p.psi_name for p in extra)})")
+                    out = list(out) + extra
+                rocks = wr_scene.rock_props(out, _cfg(sc.cur().slug) or {})
+                if rocks:
+                    print(f"    rocks: {len(rocks)} {rocks[0].psi_name} added in a line")
+                    out = list(out) + rocks
+            except Exception as e:
+                print(f"    scene vehicles: not added ({type(e).__name__}: {e})")
         try:                                       # every tyre stack that gets a collision is drawn too
             import re
             if float(k.get("near_m") or 0.0) < TYRE_NEAR_M and "decor" in tuple(categories):
@@ -1253,12 +1428,78 @@ def _replaces_tape_stick(prop):
     return bool(cfg and wr_roadside.replaces_stick(ROOT, cfg, prop))
 
 
+_ZONES = {}
+
+
+def _prop_zones():
+    """Stage build "drop_props_at": [{"psi": regex, "m": [from, to]}, {"psi": regex, "m": centre, "radius": r}] (route metres,
+    the build's route): matching WRCG props whose nearest route point lies in that stretch are left out (owner 2026-11-16:
+    the dark advert banners of Seyabei km 3.1, the incomplete house and the raised tank at km 5.3). Optional "near_cloth": "GREEN"
+    (+ "cloth_m", 0.6): only props within cloth_m of a cloth piece of that material (posts left by a removed net)."""
+    try:
+        import re
+        import numpy as np
+        import tools.acrmod.build_stage as bs
+        import tools.acrmod.stagectx as sc
+        slug = sc.cur().slug
+        rows = (_cfg(slug) or {}).get("drop_props_at") or []
+        if not rows:
+            return []
+        if slug not in _ZONES:
+            R = np.asarray(bs.route_wrcg(bs.load_cfg(slug)), float)[:, :2]
+            zs = []
+            for z in rows:
+                m = z["m"]
+                a, b = (float(m[0]), float(m[1])) if isinstance(m, (list, tuple)) else (float(m) - float(z.get("radius", 30)), float(m) + float(z.get("radius", 30)))
+                pts = None
+                if z.get("near_cloth"):                  # only props standing at a cloth piece whose material has this text
+                    import tools.acrmod.cloth_visual as cv
+                    import wr_roadside
+                    items = getattr(cv.collect_cloth, "original", cv.collect_cloth)(bs.load_cfg(slug)["wrcg_level"], near_m=150.0)[0]     # unfiltered: cloth_skip removed these
+                    shown = {id(it) for it in wr_roadside._skip_cloth(items, _cfg(slug) or {})}
+                    ends = lambda it: [np.asarray(it["pos"], float)[:2], np.asarray(it["pos"], float)[:2] + float(it["size"][0]) * np.asarray(it["dir"], float)[:2]]
+                    sel = [it for it in items if z["near_cloth"].upper() in str(it.get("material")).upper()
+                           and a <= int(np.hypot(R[:, 0] - it["pos"][0], R[:, 1] - it["pos"][1]).argmin()) <= b]
+                    pts = np.array([q for it in sel if id(it) not in shown for q in ends(it)] or [[1e9, 1e9]])      # pieces still left out
+                    keep_pts = np.array([q for it in sel if id(it) in shown for q in ends(it)] or [[1e9, 1e9]])    # pieces that stay: their posts stay
+                zs.append((re.compile(z["psi"], re.I), a, b, pts, float(z.get("cloth_m", 0.6)), keep_pts if pts is not None else None))
+            _ZONES[slug] = (R, zs)
+        return [_ZONES[slug]]
+    except Exception as e:
+        print(f"    drop_props_at: not applied ({type(e).__name__}: {e})")
+        return []
+
+
+def _in_prop_zone(p, zones):
+    import numpy as np
+    R, zs = zones[0]
+    name = p.psi_name or ""
+    cand = [z for z in zs if z[0].fullmatch(name)]
+    if not cand:
+        return False
+    W = np.asarray(p.world, float)[:3, 3]
+    i = int(np.hypot(R[:, 0] - W[0], R[:, 1] - W[1]).argmin())
+    return any(a <= i <= b and (pts is None or (float(np.hypot(pts[:, 0] - W[0], pts[:, 1] - W[1]).min()) <= d and float(np.hypot(kp[:, 0] - W[0], kp[:, 1] - W[1]).min()) > 0.3)) for _, a, b, pts, d, kp in cand)
+
+
 def _drop_hanging(insts):
     import numpy as np
     import tools.wrcg.p3d_render as pr
     out, dropped = [], {}
+    try:
+        import tools.acrmod.stagectx as sc
+        extra = tuple(w.upper() for w in (_cfg(sc.cur().slug) or {}).get("drop_psi") or ())     # stage config "drop_psi"
+    except Exception:
+        extra = ()
+    zones = _prop_zones()
     for p in insts:
         name = (p.psi_name or "").upper()
+        if extra and any(w in name for w in extra):
+            dropped[name] = dropped.get(name, 0) + 1
+            continue
+        if zones and _in_prop_zone(p, zones):
+            dropped[name] = dropped.get(name, 0) + 1
+            continue
         if name.startswith("STICK") and "/NET_TAPE/" in str(p.psi).upper() and _replaces_tape_stick(p):
             dropped["TAPE STICK"] = dropped.get("TAPE STICK", 0) + 1
             continue
@@ -1405,10 +1646,10 @@ def _fence_collision(slug, offset):
     return list(ms)
 
 
-ROCK_NEAR_M = 40.0
+ROCK_NEAR_M = 70.0                 # owner 2026-11-15: stones off the road without collision (was 40)
 ROCK_SINK_M = 0.2                  # the species' sink_cm (data/wrcg_vegetation_map.json): the stone sits in the ground
 ROCK_SCALE = (5.0, 9.0)            # the species' scale; the instances carry 1.5..2.0 over it (assumed linear, checked by eye)
-ROCK_FACTOR = 0.6                  # owner 2026-11-14: "golpean o frenan demasiado": the obstacle is this much of the stone
+ROCK_FACTOR = 0.72                 # big rocks +20 % (owner 2026-11-15; was 0.6; the small gc_rock stay at GC_ROCK_FACTOR). owner 2026-11-14: "golpean o frenan demasiado": the obstacle is this much of the stone
 GC_ROCK_FACTOR = 0.54              # the smaller ground-cover rocks (gc_rock): 0.85 -> 0.68 -> 0.58 -> 0.50 -> 0.54 (owner, final); the big ones stay at ROCK_FACTOR
 GC_ROCK_MIN_H_M = 0.3              # lower ones are driven over
 ROCK_MESH_FALLBACK = {"A": (12.0, 6.4, 8.8, 1.1), "B": (16.7, 14.0, 10.0, 0.6)}    # half extents + origin z (cm)
@@ -1578,6 +1819,15 @@ def _graph_collision(slug, offset):
     collect = getattr(pi.collect_instances, "__wrapped_orig__", None) or pi.collect_instances
     sel = [p for p in _graph_props(slug, cfg["wrcg_level"], ("static", "dynamic", "decor"), k, collect)
            if any(w in (p.psi_name or "").upper() for w in words)]
+    try:                                           # the scene's parked vehicles (wr_scene.py) get their collision too
+        import wr_scene
+        if wr_scene.options(cfg) or cfg.get("rocks"):
+            import wr_skinned
+            first, _ = collect(cfg["wrcg_level"], ("static", "dynamic", "clutter", "spline", "decor"), route_xy=route[:, :2],
+                               near_m=150.0, stage_mask=wr_skinned.stage_mask(cfg.get("stage_id")))
+            sel += wr_scene.vehicle_props(first[0] if first else None, cfg) + wr_scene.rock_props(first, cfg)
+    except Exception as e:
+        print(f"    scene vehicles: no collision ({type(e).__name__}: {e})")
     if not sel:
         return []
     pos, tri, piece, pms, cache = [], [], [], [], {}
@@ -1792,6 +2042,51 @@ def _ground_props(dst, ground, log=print):
                f"stretched to keep their arms at the lines" if pylons else ""))
 
 
+_STONE_MI = "/Game/Props/GreeceProps/GreElaSmallStones/MI_GreElaSmallLimestone"
+_STONES_MADE = {}
+
+
+def _stone_materials(mesh):
+    """"stone_tint": [r, g, b]: ACR's grey Greek limestones (rock, gc_rock, gc_stone: SM_GreElaSmallLimestone A-F, one shared
+    material instance) get a copy of it with Simple_BaseColorTintMultiply = this (linear, 1 = as stock), so the stones are
+    sand-coloured like WRCG's Kenya (owner 2026-11-16). None for other meshes or when the stage has no stone_tint."""
+    if not mesh or "GreElaSmallLimestone" not in str(mesh):
+        return None
+    import tempfile
+    import tools.acrmod.stagectx as sc
+    import wr_snowtrees as st
+    slug = sc.cur().slug
+    cfg = _cfg(slug) or {}
+    rgb = cfg.get("stone_tint")
+    if not rgb:
+        return None
+    legacy = next(iter(sorted((WORK / "acr" / "mods").glob(f"*/stages/{slug}/legacy"))), None)
+    if legacy is None:
+        print(f"    stones: no build folder for {slug}, stock material kept")
+        return None
+    new = f"/Game/Environments/{cfg['name']}/WrStones/MI_GreElaSmallLimestoneSand"
+    if new not in _STONES_MADE:
+        try:
+            with tempfile.TemporaryDirectory(prefix="wr_stone_") as tmp:
+                d = st._asset(_STONE_MI, tmp)
+                n = 0
+                for p in d["Exports"][0]["Data"]:
+                    if p["Name"] != "VectorParameterValues":
+                        continue
+                    for item in p["Value"]:
+                        f = {x["Name"]: x for x in item["Value"]}
+                        if next(x["Value"] for x in f["ParameterInfo"]["Value"] if x["Name"] == "Name") == "Simple_BaseColorTintMultiply":
+                            f["ParameterValue"]["Value"][0]["Value"].update(R=float(rgb[0]), G=float(rgb[1]), B=float(rgb[2]))
+                            n += 1
+                st._clone(d, _STONE_MI, new, {}, legacy, tmp)
+            _STONES_MADE[new] = n
+            print(f"    stones: sand tint x{list(rgb)} on the limestones ({'tint written' if n else 'NO tint parameter found'})")
+        except Exception as e:                  # a failed copy must not stop the export: stock stones
+            print(f"    stones: {type(e).__name__}: {e}, stock material kept")
+            _STONES_MADE[new] = 0
+    return [new] if _STONES_MADE[new] else None
+
+
 def _far_tree_materials(mesh):
     """"far_tree_light": the far forest's impostor materials lightened (wr_fartrees.py); else None."""
     if not mesh:
@@ -1888,6 +2183,28 @@ DECAL_MAX_TEX = 2048
 DECAL_DROP = r"TIREMARK|TYREMARK|LEAVES"
 
 
+def _decals_by_stage(recs):
+    """Stage build "decal_drop": regex of WRCG decal materials left out (Kenya: TURN_CLEAR and the tyre prints are the pale
+    strip across the road), and "decal_min_side_m": a decal whose centre is closer than this to the route centre is left
+    out too, so the decals stay at the sides of the road (owner 2026-11-16: decals on, but not the strip)."""
+    import re
+    import numpy as np
+    import tools.acrmod.build_stage as bs
+    import tools.acrmod.stagectx as sc
+    slug = sc.cur().slug
+    cfg = _cfg(slug) or {}
+    out = recs
+    rx, side = cfg.get("decal_drop"), float(cfg.get("decal_min_side_m") or 0.0)
+    if rx:
+        out = [r for r in out if not re.search(rx, str(r.get("material", "")), re.I)]
+    if side > 0 and out:
+        R = np.asarray(bs.route_wrcg(bs.load_cfg(slug)), float)[:, :2]
+        out = [r for r in out if np.hypot(R[:, 0] - r["pos"][0], R[:, 1] - r["pos"][1]).min() >= side]
+    if len(out) != len(recs):
+        print(f"    [{slug}] decals: {len(recs) - len(out)} of {len(recs)} left out (decal_drop {rx!r}, closer than {side:g} m to the route centre), {len(out)} kept")
+    return out
+
+
 def _patch_decals():
     import re
     import tools.acrmod.decal_visual as dv
@@ -1903,6 +2220,7 @@ def _patch_decals():
             keep = [r for r in recs if not re.search(DECAL_DROP, str(r.get("material", "")), re.I)]
             if len(keep) != len(recs):
                 print(f"    decals: {len(recs) - len(keep)} WRCG decals left out (Pietrosella tyre marks that looked like leaves, dry leaves)")
+            keep = _decals_by_stage(keep)
             return keep
         except Exception:
             return recs
@@ -1913,6 +2231,51 @@ def _patch_decals():
 # The baked road blends into the terrain over fringe_m (2 m in the builder): a wide, blurred band along every road edge
 # (owner 2026-11-10: "los bordes de la carretera ... a veces se ven difuminados cutres"). Narrower here.
 ROAD_FRINGE_M = 0.8
+
+
+def _patch_road_seams():
+    """Seams between two sections of one road (Seyabei KE_SS2_ROAD_14 and ROAD_08 km 3.087, owner 2026-11-16: "franjas"): the
+    builder's road layers give the outer-edge value (t = 1, opacity 0) to some vertices in the middle of the carriageway
+    that belong to no border triangle, so the gravel fades out across the road and the smooth earth under it shows. Such
+    vertices (723 on Seyabei, about 40 seams) get t = 0 (interior). Border vertices, piece ends and crossings are untouched."""
+    import numpy as np
+    import tools.acrmod.ittiri_road_layers as rl
+    if getattr(rl.road_layers, "_wr_seams", False):
+        return
+    orig = rl.road_layers
+
+    def road_layers(*a, **k):
+        L = orig(*a, **k)
+        try:
+            tri, border = np.asarray(L["triangles"]), np.asarray(L["border"], bool)
+            on_border = np.zeros(len(L["positions"]), bool)
+            on_border[tri[border].ravel()] = True
+            t = np.array(L["t"], float)
+            bad = (rl.opacity(t) < 0.99) & ~on_border & (np.asarray(L["end_fade"]) >= 0.99)
+            try:                                     # stage build "road_solid": [{"m": [from, to], "lateral_m": 3.0}]
+                import tools.acrmod.build_stage as bs
+                import tools.acrmod.stagectx as sc
+                slug = sc.cur().slug
+                R = np.asarray(bs.route_wrcg(bs.load_cfg(slug)), float)[:, :2]
+                for z in (_cfg(slug) or {}).get("road_solid") or []:
+                    a, b = int(z["m"][0]), int(z["m"][1])
+                    seg = R[a:b + 1]
+                    d = np.hypot(L["positions"][:, None, 0] - seg[None, :, 0], L["positions"][:, None, 1] - seg[None, :, 1]).min(1)
+                    hit = (d < float(z.get("lateral_m", 3.0))) & (t > 0.5)
+                    bad |= hit
+                    print(f"    road layers: {int(hit.sum())} edge vertices across the road made opaque at route m {a}-{b}")
+            except Exception as e:
+                print(f"    road layers: road_solid not applied ({type(e).__name__}: {e})")
+            if bad.any():
+                t[bad] = 0.0
+                L = dict(L, t=t)
+                print(f"    road layers: {int(bad.sum())} vertices in the middle of the road wrongly marked as outer edge (seams between road sections) made opaque")
+        except Exception as e:                       # the stock layers are kept
+            print(f"    road layers: seam fix not applied ({type(e).__name__}: {e})")
+        return L
+
+    road_layers._wr_seams = True
+    rl.road_layers = road_layers
 
 
 def _patch_road_fringe():
@@ -1997,6 +2360,7 @@ def _patch_road_grid(columns=11):
             _drop_tunnel_road(L)
         except Exception as e:
             print(f"    road layers: tunnel road kept ({type(e).__name__}: {e})")
+        _clear_internal_road_borders(L)
         return L
 
     road_layers._wr = True
@@ -2009,6 +2373,41 @@ def _patch_road_grid(columns=11):
 # another road piece (a vertex of another piece within JOIN_M of its end row) is not faded; crossing pieces never are.
 JOIN_M = 1.0
 ROAD_WIDTH_M = 7.0
+
+
+def _clear_internal_road_borders(layers):
+    """Remove the visual fringe at shared edges between surface slots."""
+    import numpy as np
+
+    points = np.asarray(layers["positions"], float)
+    tris = np.asarray(layers["triangles"])
+    if not len(tris):
+        return
+    edges = np.sort(np.concatenate([tris[:, [0, 1]], tris[:, [1, 2]], tris[:, [2, 0]]]), axis=1)
+    opposite = np.concatenate([tris[:, 2], tris[:, 0], tris[:, 1]])
+    _, first, count = np.unique(edges, axis=0, return_index=True, return_counts=True)
+    boundary = first[count == 1]
+
+    # The WRCG slots have separate vertices for the very same edge.
+    _, weld = np.unique(np.rint(points * 1000).astype(np.int64), axis=0, return_inverse=True)
+    endpoints = edges[boundary]
+    canonical = weld[endpoints]
+    reverse = canonical[:, 0] > canonical[:, 1]
+    endpoints[reverse] = endpoints[reverse, ::-1]
+    canonical = weld[endpoints]
+    _, group, edge_count = np.unique(canonical, axis=0, return_inverse=True, return_counts=True)
+    start, end = points[endpoints[:, 0], :2], points[endpoints[:, 1], :2]
+    edge, interior = end - start, points[opposite[boundary], :2] - start
+    side = np.sign(edge[:, 0] * interior[:, 1] - edge[:, 1] * interior[:, 0])
+    balanced = np.bincount(group, weights=side) == 0
+    shared = (edge_count[group] == 2) & balanced[group] & (side != 0)
+    inside = np.setdiff1d(canonical[shared], canonical[~shared])
+    mask = np.isin(weld, inside) & (np.asarray(layers["t"]) > 0)
+    if mask.any():
+        fringe = np.asarray(layers["t"]).copy()
+        fringe[mask] = 0.0
+        layers["t"] = fringe
+        print(f"    road layers: {int(mask.sum())} internal seam vertices no longer faded")
 
 
 def _piece_of_vertex(L, npz):
@@ -2333,6 +2732,92 @@ def _patch_water():
             return cells
     water_cells._wr = True
     wv.water_cells = water_cells
+
+
+def _drop_pacenote_tokens(slug):
+    """"pacenote_drop_tokens": ["WATER"]: those words are taken out of the stage's pacenote calls (work/wrcg/<slug>/
+    pacenotes.json; the original kept as pacenotes.orig.json, so it is redone from it every build). Owner 2026-11-15:
+    Seyabei's co-driver said "water" and there is none in ACR."""
+    words = {str(w).upper() for w in (_cfg(slug) or {}).get("pacenote_drop_tokens") or ()}
+    f = WORK / "wrcg" / slug / "pacenotes.json"
+    if not words or not f.exists():
+        return
+    orig = f.with_name("pacenotes.orig.json")
+    if not orig.exists():
+        orig.write_bytes(f.read_bytes())
+    d = json.loads(orig.read_text(encoding="utf-8"))
+    n = [0]
+
+    def clean(o):
+        if isinstance(o, dict):
+            out = {}
+            for k, v in o.items():
+                if k == "tokens" and isinstance(v, list):
+                    n[0] += sum(str(t).upper() in words for t in v)
+                    v = [t for t in v if str(t).upper() not in words]
+                out[k] = clean(v) if k != "tokens" else v
+            return out
+        if isinstance(o, list):
+            return [clean(x) for x in o]
+        return o
+    f.write_text(json.dumps(clean(d), ensure_ascii=False, indent=1), encoding="utf-8")
+    print(f"    [{slug}] pacenotes: {n[0]} call words left out ({', '.join(sorted(words))})")
+
+
+def _patch_no_water():
+    """"water": false: the stage's WRCG lakes (Ocean_n) are not drawn: ACR has no such puddles, the road stays plain gravel."""
+    import tools.acrmod.water_visual as wv
+    if getattr(wv.ocean_nodes, "_wr_none", False):
+        return
+    orig = wv.ocean_nodes
+
+    def ocean_nodes(level, *a, **k):
+        try:
+            import tools.acrmod.stagectx as sc
+            if (_cfg(sc.cur().slug) or {}).get("water", True) is False:
+                return []
+        except Exception:
+            pass
+        return orig(level, *a, **k)
+
+    ocean_nodes._wr_none = True
+    wv.ocean_nodes = ocean_nodes
+
+
+def _patch_water_surface():
+    """\"water_surface\": the road under the stage's water planes gets that ACR physical material (wr_water.py)."""
+    import tools.acrmod.ittiri_container as ic
+    if getattr(ic.meshes, "_wr_water", False):
+        return
+    orig = ic.meshes
+
+    def meshes(offset=(0.0, 0.0, 0.0), *a, **k):
+        out = orig(offset, *a, **k)
+        try:
+            import numpy as np
+            import tools.acrmod.bakeddata as bd
+            import tools.acrmod.stagectx as sc
+            import tools.acrmod.water_visual as wv
+            import wr_water
+            cfg = _cfg(sc.cur().slug) or {}
+            pm = wr_water.water_pm(cfg)
+            if not pm:
+                return out
+            waters = []
+            for node in wv.ocean_nodes(cfg["wrcg_level"]):
+                cells = np.asarray(wv.water_cells(node))
+                if len(cells):
+                    waters.append((cells[:, :2], float(np.asarray(node["pos"], float).reshape(-1)[2])))
+            adjusted, moved = wr_water.split(out, offset, waters, pm, bd.Mesh)
+            if moved:
+                print(f"    water: {moved} submerged road triangles use {pm}")
+            return adjusted
+        except Exception as e:
+            print(f"    water: puddle surface skipped ({type(e).__name__}: {e})")
+            return out
+
+    meshes._wr_water = True
+    ic.meshes = meshes
 
 
 def _drop_tunnel_road(L):
@@ -2695,15 +3180,50 @@ def _late_level(dst):
     route = bs.route_wrcg(cfg)
     shift = bs.stage_shift(cfg, route)
     route_ue = pv.wrcg_world_to_ue(route, shift)
+    if cfg.get("greece_gravel_dust"):
+        import wr_gravel
+        try:
+            wr_gravel.add_greek_dust(dst, log)
+        except Exception as e:
+            log(f"wheel particles: not set ({type(e).__name__}: {e})")
     import wr_roadside
-    if wr_roadside.replace_tape(cfg) or any(wr_roadside.on(cfg, k) for k in ("brake_boards", "corner_posts")):
-        wr_roadside.add(dst, ROOT, cfg, route, shift, ig.make_ground_fn(shift), log)
+    ground = ig.make_ground_fn(shift)
+    if wr_roadside.replace_tape(cfg) or cfg.get("acr_nets") or any(wr_roadside.on(cfg, k) for k in ("brake_boards", "corner_posts")):
+        wr_roadside.add(dst, ROOT, cfg, route, shift, ground, log)
+    if cfg.get("sign_lighting_m"):
+        import wr_lights
+        try:
+            wr_lights.fix_sign_lighting(dst, ROOT, route, shift, ground, cfg, log=log)
+        except Exception as e:
+            log(f"sign lighting: not completed ({type(e).__name__}: {e})")
+    if cfg.get("water_animated_oceans"):
+        import wr_water
+        try:
+            wr_water.use_animated_water(dst, cfg["water_animated_oceans"], log=log)
+        except Exception as e:
+            log(f"water: animated material not added ({type(e).__name__}: {e})")
     if cfg.get("sector_fill_m"):
         import wr_lights
         try:
             wr_lights.add_sector_fill(dst, ROOT, route, shift, cfg["sector_fill_m"], cfg, log=log)
         except Exception as e:
             log(f"ACR sector fill: not added ({type(e).__name__}: {e})")
+    try:
+        import wr_lights
+        import wr_scene
+        lights = wr_scene.light_positions(cfg)
+        if lights:
+            log(f"scene: {wr_lights._add_fill_lights(dst, ROOT, shift, lights, 'WrcgSceneFill')} lights for the parked vehicles")
+    except Exception as e:
+        log(f"scene: lights not added ({type(e).__name__}: {e})")
+    if cfg.get("net_fill"):
+        try:
+            import tools.acrmod.cloth_visual as cv
+            import wr_lights
+            pos = wr_lights.net_fill_positions(cfg["net_fill"], __import__("wr_roadside")._skip_cloth(getattr(cv.collect_cloth, "original", cv.collect_cloth)(cfg["wrcg_level"], near_m=150.0)[0], cfg), route)
+            log(f"net fill: {wr_lights._add_fill_lights(dst, ROOT, shift, pos, 'WrcgNetFill')} lights along {cfg['net_fill']}")
+        except Exception as e:
+            log(f"net fill: not added ({type(e).__name__}: {e})")
     if cfg.get("rvt"):
         import wr_rvt
         tiles = [i for i in range(1, len(dst.exports) + 1) if dst.exp(i)["ObjectName"].startswith(wr_rvt.TERRAIN_PREFIX)]

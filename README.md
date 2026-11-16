@@ -10,6 +10,8 @@
 
 ## Instalar
 
+Descarga el ZIP desde [GitHub Releases](https://github.com/Faviogames/Stage-Exporter/releases/latest) y descomprímelo.
+
 Coloca esta carpeta junto a la instalación de Sando y ejecuta `INSTALAR.bat`. Si el instalador no detecta la ruta automáticamente, selecciona la carpeta que contiene `_internal\wrcg2acr-worker.exe`. El instalador genera **WRC to ACR Stage Exporter.exe** en la carpeta de Sando. Abre ese ejecutable tras finalizar la instalación.
 
 En la ventana **Stage Exporter**, elige un tramo y pulsa **Exportar tramo**. Usa **Actualizar pack** para instalar los tramos marcados. Las exportaciones aparecen en el juego bajo `[MOD] <país>`.

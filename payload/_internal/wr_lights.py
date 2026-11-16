@@ -162,20 +162,17 @@ def add_lamp_lights(dst, work_acr, legacy_roots, log=print, prefix="WrcgLampLigh
         f"lamp head, straight down, {LIGHT['Intensity']:.0f} cd over {LIGHT['AttenuationRadius'] / 100:.0f} m)")
     return len(lamps)
 
-FILL_SCALE = 0.15       # 15 % of initial intensity
+FILL_SCALE = 0.1125     # 15 % of the initial intensity, minus 25 % more (owner 2026-11-15: grass too bright around the 3.1 km boards)
 
 
 def add_sector_fill(dst, root, route, shift, zones, cfg, log=print):
     """Shadowless neutral fill in configured parts of the route and on their boards."""
     import numpy as np
 
-    from tools.acrmod import props_visual as pv
-    import wr_finish as wf
-    import wr_perf
     import wr_roadside as roadside
 
     xyz, _ = roadside._route_samples(np.asarray(route, float))
-    board_plan = roadside._board_plan(route, roadside._road_test(root / "work" / "wrcg" / cfg["slug"]))
+    board_plan = roadside._board_plan(route, roadside._road_test(root / "work" / "wrcg" / cfg["slug"]), cfg)
     positions = []
     for start, end in zones:
         for s in range(int(start) + 20, min(int(end), len(xyz)), 34):
@@ -183,8 +180,106 @@ def add_sector_fill(dst, root, route, shift, zones, cfg, log=print):
         for _, s, point, ahead in board_plan:
             if start <= s <= end:
                 positions.append((point - 4.0 * (ahead - point) + [0, 0, 2.7], 1800, 16000 * FILL_SCALE))
+    count = _add_fill_lights(dst, root, shift, positions, "WrcgSectorFill")
+    log(f"ACR sector fill: {count} lights at {zones} m")
+    return count
+
+
+BOARD_LIGHT_CD = 135.0       # was 180: -25 % (owner 2026-11-15, the grass around the 100/50 boards looked too bright and green)
+BOARD_LIGHT_H_M = 1.1        # was 0.75: higher, so its 1.5 m sphere barely touches the grass (less of a spot on the ground)
+
+
+def fix_sign_lighting(dst, root, route, shift, ground, cfg, log=print):
+    """Suppress nearby advert shadows and give the braking boards a tight fill."""
+    import re
+    import numpy as np
+    from tools.acrmod import props_visual as pv
+    import wr_breakables as wb
+    import wr_finish as wf
+    import wr_perf
+    import wr_roadside as roadside
+    from wr_tapeposts import AD_BOARD_RE
+
+    start, end = cfg["sign_lighting_m"]
+    points, _ = roadside._route_samples(route)
+    xy = pv.wrcg_world_to_ue(points, shift)[:, :2]
+    adverts = 0
+    for i in range(1, len(dst.exports) + 1):
+        name = dst.exp(i)["ObjectName"]
+        if not name.startswith("WrcgPhysicalAdBoard_"):
+            if not name.startswith(wr_perf.PROP_PREFIX):
+                continue
+            stem = re.sub(r"_\d+$", "", name[len(wr_perf.PROP_PREFIX):])
+            if not AD_BOARD_RE.fullmatch(stem):
+                continue
+        _, c, _ = wf._mesh_of(dst, i)
+        if not c:
+            continue
+        component = dst.exp(c)
+        loc = wb._vec_of(component, "RelativeLocation")
+        if not loc:
+            continue
+        d2 = ((xy - [loc["X"], loc["Y"]]) ** 2).sum(axis=1)
+        at = int(d2.argmin())
+        if start <= at <= end and d2[at] <= 1800 ** 2:
+            wr_perf._set_bool(dst, component, "CastShadow", False)
+            adverts += 1
+
+    positions = []
+    if roadside.on(cfg, "brake_boards"):
+        clear = roadside._road_test(root / "work" / "wrcg" / cfg["slug"])
+        for distance, s, point, ahead in roadside._board_plan(route, clear, cfg):
+            if not start <= s <= end:
+                continue
+            x, y, z = pv.wrcg_world_to_ue(np.asarray([point]), shift)[0]
+            position = point - 0.85 * (ahead - point)
+            position[2] += (float(ground(x, y, z)) - z) / 100.0 + BOARD_LIGHT_H_M
+            positions.append((position, 150.0, BOARD_LIGHT_CD))
+            log(f"sign lighting: {distance} m board at route m {s}")
+    count = _add_fill_lights(dst, root, shift, positions, "WrcgBrakeBoardFill")
+    log(f"sign lighting: {adverts} advert components without shadows, {count} brake board lights")
+    return adverts, count
+
+
+def net_fill_positions(zones, items, route):
+    """Stage build "net_fill": [{"m": [from, to], "material": "NET_RED", "every_m": 20, "toward_m": 5, "height_m": 8, "cd": 8000,
+    "radius_cm": 2500}]: for the cloth pieces (the core's collect_cloth items) of that material along that stretch of the route,
+    one high, broad, shadowless light per every_m metres, over the pieces' centre moved toward the road, so the net's road-facing
+    side gets the light and the ground gets no spot (like the vehicles' lights, owner 2026-11-16). [(WRCG xyz, radius cm, cd)]."""
+    import re
+    import numpy as np
+    R = np.asarray(route, float)
+    out = []
+    for z in zones:
+        a, b = float(z["m"][0]), float(z["m"][1])
+        rx, every = re.compile(z.get("material", "NET_RED"), re.I), float(z.get("every_m", 20.0))
+        groups = {}
+        for it in items:
+            if not rx.search(str(it.get("material", ""))):
+                continue
+            p = np.asarray(it["pos"], float)
+            i = int(np.hypot(R[:, 0] - p[0], R[:, 1] - p[1]).argmin())
+            if a <= i <= b:
+                groups.setdefault(int((i - a) // every), []).append((p, i))
+        for g in groups.values():
+            P = np.mean([p for p, _ in g], axis=0)
+            i = int(np.mean([i for _, i in g]))
+            toward = R[i, :2] - P[:2]
+            lat = float(np.hypot(*toward))
+            step = toward / lat * min(float(z.get("toward_m", 5.0)), lat) if lat > 1e-6 else np.zeros(2)
+            out.append((np.r_[P[:2] + step, P[2] + float(z.get("height_m", 8.0))], float(z.get("radius_cm", 2500.0)), float(z.get("cd", 8000.0))))
+    return out
+
+
+def _add_fill_lights(dst, root, shift, positions, prefix):
     if not positions:
         return 0
+    import numpy as np
+    from tools.acrmod import props_visual as pv
+    import wr_finish as wf
+    import wr_perf
+    import wr_roadside as roadside
+
     # AC Rally's stock service-vehicle cell contains normal PointLight exports.
     from wr_support import prepare
 
@@ -200,7 +295,7 @@ def add_sector_fill(dst, root, route, shift, zones, cfg, log=print):
     preset.update({i: 0 for i in controllers})
     level = roadside._level(dst)
     for n, (position, radius, candelas) in enumerate(positions):
-        a = roadside._clone(dst, src, actor, level, f"WrcgSectorFill_{n}", preset)
+        a = roadside._clone(dst, src, actor, level, f"{prefix}_{n}", preset)
         e = dst.exp(a)
         e["Data"] = [p for p in e["Data"] if p.get("Name") != "InstanceComponents"]
         for key, refs in e.items():
@@ -219,7 +314,6 @@ def add_sector_fill(dst, root, route, shift, zones, cfg, log=print):
         mobility.update(Name="Mobility", EnumType="EComponentMobility", Value="Movable")
         c["Data"].append(mobility)
         dst._add_export_names(c)
-    log(f"ACR sector fill: {len(positions)} lights at {zones} m")
     return len(positions)
 
 def set_day_skylight(dst, sky_actor, factor):

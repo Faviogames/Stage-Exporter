@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 >nul
 setlocal
-title WRC to ACR Stage Exporter - instalador
+title Stage Exporter - instalador
 set "HERE=%~dp0"
 set "TOOL=%~1"
 if not defined TOOL if exist "%HERE%..\_internal\wrcg2acr-worker.exe" set "TOOL=%HERE%.."

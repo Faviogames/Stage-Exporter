@@ -61,6 +61,13 @@ def veg_after(dst, n0, species):
             _set_bool(dst, dst.exp(i), "bAffectDistanceFieldLighting", False)
 
 
+def extend_tree_visibility(dst, hism):
+    component = dst.exp(hism)
+    _set_bool(dst, component, "bNeverDistanceCull", True)
+    _set_float(dst, component, "InstanceLODDistanceScale", 1.25)
+    dst._add_export_names(component)
+
+
 # --- props -------------------------------------------------------------------------------------------------------------
 
 def note_props(insts):

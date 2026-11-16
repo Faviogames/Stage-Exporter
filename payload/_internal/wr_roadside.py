@@ -106,8 +106,54 @@ def _turn_angles(xy, samples):
                       np.sum(before * after, axis=1))
 
 
-def _board_plan(route, clear):
+BOARD_MIN_DEG = 60.0         # owner 2026-11-15: 100 / 50 boards showed before bends that were not tight (was 40)
+_FENCES = {}
+
+
+def _fence_segments(cfg):
+    """Nx4 (x1, y1, x2, y2) WRCG metres of the stage's nets and tapes: a board must stand on the road side of them."""
+    slug = (cfg or {}).get("slug")
+    if slug not in _FENCES:
+        segs = []
+        try:
+            from tools.acrmod import cloth_visual as cv
+            items, _ = getattr(cv.collect_cloth, "original", cv.collect_cloth)(cfg["wrcg_level"], near_m=150.0)
+            for it in items:
+                a = np.asarray(it["pos"], float)[:2]
+                b = a + float(it["size"][0]) * np.asarray(it["dir"], float)[:2]
+                segs.append((*a, *b))
+        except Exception as e:                 # without them the boards are placed as before
+            print(f"    brake boards: net positions not read ({type(e).__name__}: {e})")
+        _FENCES[slug] = np.asarray(segs, float).reshape(-1, 4)
+    return _FENCES[slug]
+
+
+def _behind_fence(a, b, segs, margin=0.6):
+    """True if the segment road centre a -> board b crosses a fence segment or ends within `margin` m of one."""
+    if not len(segs):
+        return False
+    near = segs[(np.minimum(segs[:, 0], segs[:, 2]) < max(a[0], b[0]) + 3) & (np.maximum(segs[:, 0], segs[:, 2]) > min(a[0], b[0]) - 3)
+                & (np.minimum(segs[:, 1], segs[:, 3]) < max(a[1], b[1]) + 3) & (np.maximum(segs[:, 1], segs[:, 3]) > min(a[1], b[1]) - 3)]
+    d = b - a
+    for x1, y1, x2, y2 in near:
+        e = np.array([x2 - x1, y2 - y1])
+        den = d[0] * e[1] - d[1] * e[0]
+        if abs(den) > 1e-9:
+            t = ((x1 - a[0]) * e[1] - (y1 - a[1]) * e[0]) / den
+            u = ((x1 - a[0]) * d[1] - (y1 - a[1]) * d[0]) / den
+            if 0 <= t <= 1 and 0 <= u <= 1:
+                return True
+        ee = float(e @ e)
+        w = np.clip(((b[0] - x1) * e[0] + (b[1] - y1) * e[1]) / ee, 0, 1) if ee else 0.0
+        if np.hypot(b[0] - (x1 + w * e[0]), b[1] - (y1 + w * e[1])) < margin:
+            return True
+    return False
+
+
+def _board_plan(route, clear, cfg=None):
     route = np.asarray(route, float)
+    min_deg = float((cfg or {}).get("brake_board_min_deg", BOARD_MIN_DEG))
+    segs = _fence_segments(cfg) if cfg else np.zeros((0, 4))
     if len(route) < 142:
         return []
     samples_xyz, along = _route_samples(route)
@@ -117,7 +163,7 @@ def _board_plan(route, clear):
     corners = []
     for i in np.argsort(turn)[::-1]:
         s = int(samples[i])
-        if turn[i] < math.radians(40):
+        if turn[i] < math.radians(min_deg):
             break
         if all(abs(s - k) >= 140 for k in corners):
             corners.append(s)
@@ -128,7 +174,7 @@ def _board_plan(route, clear):
             head, side = wf._heading(xy, s)
             for offset in (3.5, 4.0, 4.5, 5.0, 6.0, 7.0, 8.0, 9.0):
                 locations = [xy[s] + sign * side * offset for sign in (1, -1)]
-                point = next((p for p in locations if clear(p)), None)
+                point = next((p for p in locations if clear(p) and not _behind_fence(xy[s], p, segs)), None)
                 if point is not None:
                     index = np.searchsorted(along, s, side="right") - 1
                     result.append((distance, s, np.r_[point, route[index, 2]], np.r_[point + head, route[index, 2]]))
@@ -136,7 +182,14 @@ def _board_plan(route, clear):
     return result
 
 
-def _corner_post_plan(route, clear):
+def _corner_post_plan(route, clear, cfg=None):
+    """ACR's red posts at bends >= corner_post_min_deg (45), at least corner_post_gap_m apart (500); with
+    corner_post_fill_m also on the straights, one about every that many metres, alternating sides (owner 2026-11-15:
+    they showed too little); corner_post_skip_m [[from, to]]: none in those route metres."""
+    cfg = cfg or {}
+    skip = cfg.get("corner_post_skip_m") or []
+    min_deg, gap = float(cfg.get("corner_post_min_deg", 45.0)), float(cfg.get("corner_post_gap_m", 500.0))
+    fill = float(cfg.get("corner_post_fill_m") or 0.0)
     route = np.asarray(route, float)
     if len(route) < 3:
         return []
@@ -145,21 +198,35 @@ def _corner_post_plan(route, clear):
     samples = np.arange(120, len(xyz) - 120)
     angles = _turn_angles(xy, samples)
     result = []
-    for i in np.argsort(-np.abs(angles), kind="stable"):
-        if abs(angles[i]) < math.radians(45):
-            break
-        s = int(samples[i])
-        if any(abs(s - at) < 500 for at, _, _ in result):
-            continue
+
+    def place(s, inward):
         head, side = wf._heading(xy, s)
-        inward = math.copysign(1.0, angles[i]) * side
         for distance in np.arange(2.5, 7.01, 0.25):
-            point = xy[s] + distance * inward
+            point = xy[s] + distance * inward(side)
             # Cover the whole 20 cm base in addition to the road-test margin.
             footprint = point + [[-0.15, -0.15], [-0.15, 0.15], [0.15, -0.15], [0.15, 0.15], [0, 0]]
             if clear(footprint) and all(np.linalg.norm(point - p[:2]) >= 16.0 for _, p, _ in result):
                 result.append((s, np.r_[point, xyz[s, 2]], np.r_[point + head, xyz[s, 2]]))
-                break
+                return True
+        return False
+
+    for i in np.argsort(-np.abs(angles), kind="stable"):
+        if abs(angles[i]) < math.radians(min_deg):
+            break
+        s = int(samples[i])
+        if any(abs(s - at) < gap for at, _, _ in result) or any(a <= s <= b for a, b in skip):
+            continue
+        sign = math.copysign(1.0, angles[i])
+        place(s, lambda side, sign=sign: sign * side)
+    if fill:
+        flip = 1.0
+        for s in range(int(samples[0]), int(samples[-1]), 10):
+            if any(abs(s - at) < fill for at, _, _ in result) or any(a <= s <= b for a, b in skip):
+                continue
+            if abs(angles[s - int(samples[0])]) > math.radians(min_deg):
+                continue                                    # a bend: left to the bend rule
+            if place(s, lambda side, f=flip: f * side):
+                flip = -flip
     return sorted(result, key=lambda row: row[0])
 
 
@@ -366,6 +433,12 @@ def _red_layout(root, cfg, route=None, clear=None):
 
 
 def replaces_stick(root, cfg, prop):
+    try:                                    # first: wrcg_tape_post_physics (on by default) returns below
+        import wr_acrnets
+        if wr_acrnets.options(cfg) and wr_acrnets.replaces_stick(cfg, prop):
+            return True
+    except Exception as e:
+        print(f"    ACR nets: sticks kept ({type(e).__name__}: {e})")
     if on(cfg, "wrcg_tape_post_physics"):
         return False
     if cfg.get("tape_posts"):
@@ -525,7 +598,21 @@ def patch(cfg_for_slug):
             items = [item for item in items if not _is_replaced(item, panels)]
         elif cfg and replace_tape(cfg) and on(cfg, "acr_wire_fence"):
             items = [item for item in items if item["template"] != "TapeCloth"]
-        return _skip_cloth(items, cfg), stats
+        items = _skip_cloth(items, cfg)
+        try:                                    # ACR's own nets replace WRCG's red / green ones (wr_acrnets.py)
+            import wr_acrnets
+            if cfg and wr_acrnets.options(cfg):
+                items = [item for item in items if wr_acrnets.classify(item, cfg) is None]
+        except Exception as e:
+            print(f"    ACR nets: WRCG nets kept ({type(e).__name__}: {e})")
+        try:                                    # hand-placed scene: its safety net (wr_scene.py)
+            import wr_scene
+            extra = wr_scene.cloth_items(cfg) if cfg else []
+            if extra:
+                items = list(items) + extra
+        except Exception as e:
+            print(f"    scene net: not added ({type(e).__name__}: {e})")
+        return items, stats
 
     collect._wr_roadside = True
     collect.original = original
@@ -558,9 +645,15 @@ def add(dst, root, cfg, route, shift, ground, log):
                 log("ACR wire fence: no WRCG tape outside the road, none added")
         except Exception as e:                  # universal now: one stage's odd data must not stop the export
             log(f"ACR wire fence: not added ({type(e).__name__}: {e})")
+    try:
+        import wr_acrnets
+        if wr_acrnets.options(cfg):
+            wr_acrnets.add(dst, root, cfg, to_ue, ground, log)
+    except Exception as e:                      # the stage keeps its WRCG nets' absence only if this fails: say so
+        log(f"ACR nets: not added ({type(e).__name__}: {e})")
     if on(cfg, "brake_boards"):
         try:
-            boards = _board_plan(route, clear)
+            boards = _board_plan(route, clear, cfg)
             props = [(f"WrcgBrakeBoard_{distance}_{i}", SIGN_PACKAGE + f"SM_DistanceSign{distance}B",
                       point, ahead, (0.86625, 0.86625, 1.056)) for i, (distance, _, point, ahead) in enumerate(boards)]
             _add_roadside_props(dst, props, to_ue(route), to_ue, ground, cfg.get("road_width_m") or 7.0)
@@ -569,7 +662,7 @@ def add(dst, root, cfg, route, shift, ground, log):
             log(f"ACR braking boards: not added ({type(e).__name__}: {e})")
     if on(cfg, "corner_posts"):
         try:
-            posts = _corner_post_plan(route, clear)
+            posts = _corner_post_plan(route, clear, cfg)
             _add_corner_posts(dst, root, posts, to_ue, ground)
             log(f"ACR physical corner posts: {len(posts)} at route m {[s for s, _, _ in posts]}")
         except Exception as e:

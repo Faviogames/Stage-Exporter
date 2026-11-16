@@ -193,7 +193,7 @@ def _road(draw, w, h, width, color, dash=None, k=1.0):
 
 
 def app_icon(path):
-    """Stage Exporter's icon: an orange rally road on a dark rounded square (multi-size .ico)."""
+    """Stage Studio's icon: an orange rally road on a dark rounded square (multi-size .ico)."""
     from PIL import Image, ImageDraw
     S = 1024
     base = Image.new("RGBA", (S, S), PANEL + (255,))

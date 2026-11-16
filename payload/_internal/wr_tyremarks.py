@@ -217,7 +217,11 @@ def _patch_worker():
 
         def key(kind, *parts, **k):
             salt = _current().get("salt") if str(kind).startswith("terrain") else ""
-            return orig_key(kind, *parts, *(("wr_tyre", salt) if salt else ()), **k)
+            if kind == "terrain-tile":
+                parts += ("wr_internal_road_borders_v1",)
+            if salt:
+                parts += ("wr_tyre", salt)
+            return orig_key(kind, *parts, **k)
 
         key._wr = True
         bc.key = key

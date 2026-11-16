@@ -1,4 +1,4 @@
-"""A stage as one file (.stage): Stage Exporter's "Exportar como .stage" / "Importar tramo".
+"""A stage as one file (.stage): Stage Studio's "Exportar como .stage" / "Importar tramo".
 
 The file is a zip of the stage's last build (its entry in the build cache, which wr_pack builds the pack from without
 WRCG's export), its stage build and its menu images. Importing puts the entry in the cache, the build and images in
@@ -69,7 +69,7 @@ def peek(src):
     with zipfile.ZipFile(src) as z:
         meta = json.loads(z.read(META))
     if meta.get("format") != FORMAT or not SLUG.match(str(meta.get("slug"))) or not KEY.match(str(meta.get("key"))):
-        raise ValueError("not a Stage Exporter stage file")
+        raise ValueError("not a Stage Studio stage file")
     return meta
 
 
