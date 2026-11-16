@@ -9,6 +9,7 @@ import base64
 import copy
 import json
 import math
+import re
 import os
 import struct
 import tempfile
@@ -150,10 +151,59 @@ def _behind_fence(a, b, segs, margin=0.6):
     return False
 
 
+_OBSTACLES = {}
+_BIG = re.compile(r"WALL|FENCE|HOUSE|STALL|BUS_|COMBI|TENT|SHED|HUT", re.I)
+
+
+def _obstacles(cfg):
+    """(circles Nx3 x, y, r, boxes Mx4 x0, y0, x1, y1), WRCG metres: what a roadside board must not stand in or behind. The
+    props of the level that are still there (after props_at / drop_props_at) and the collision owners of
+    collision_extra.npz, grown by 0.6 m. Read once per stage; empty (boards as before) if they cannot be read."""
+    slug = (cfg or {}).get("slug")
+    if slug not in _OBSTACLES:
+        circles, boxes = [], []
+        try:
+            from wr import ROOT
+            with np.load(ROOT / "work" / "wrcg" / slug / "collision_extra.npz", allow_pickle=True) as d:
+                lo, hi = d["owner_bbox_min"][:, :2], d["owner_bbox_max"][:, :2]
+                boxes = np.c_[lo - 0.6, hi + 0.6].tolist()
+            import tools.acrmod.build_stage as bs
+            import tools.wrcg.prop_instances as pi
+            import wr_skinned
+            r_xy = np.asarray(bs.route_wrcg(bs.load_cfg(slug)), float)[:, :2]
+            insts, _ = pi.collect_instances(cfg["wrcg_level"], ("static", "dynamic", "clutter", "spline", "decor"), route_xy=r_xy,
+                                            near_m=30.0, stage_mask=wr_skinned.stage_mask(cfg.get("stage_id")))
+            for q in insts:
+                W = np.asarray(q.world, float)
+                circles.append((W[0, 3], W[1, 3], 2.5 if _BIG.search(q.psi_name or "") else 1.2))
+        except Exception as e:
+            print(f"    brake boards: obstacles not read ({type(e).__name__}: {e})")
+        _OBSTACLES[slug] = (np.asarray(circles, float).reshape(-1, 3), np.asarray(boxes, float).reshape(-1, 4))
+    return _OBSTACLES[slug]
+
+
+def _blocked(a, b, obstacles):
+    """True if a prop or a collision box lies on the way from the road centre a to the board spot b (or is the spot)."""
+    circles, boxes = obstacles
+    t = np.linspace(0.0, 1.0, int(max(3, np.hypot(*(b - a)) / 0.4)))[:, None]
+    pts = a + t * (b - a)
+    if len(circles):
+        near = circles[np.hypot(circles[:, 0] - a[0], circles[:, 1] - a[1]) < 25]
+        if len(near) and (np.hypot(pts[:, None, 0] - near[None, :, 0], pts[:, None, 1] - near[None, :, 1]) < near[None, :, 2]).any():
+            return True
+    if len(boxes):
+        near = boxes[(boxes[:, 0] < b[0] + 25) & (boxes[:, 2] > b[0] - 25) & (boxes[:, 1] < b[1] + 25) & (boxes[:, 3] > b[1] - 25)]
+        if len(near) and ((pts[:, None, 0] > near[None, :, 0]) & (pts[:, None, 0] < near[None, :, 2])
+                          & (pts[:, None, 1] > near[None, :, 1]) & (pts[:, None, 1] < near[None, :, 3])).any():
+            return True
+    return False
+
+
 def _board_plan(route, clear, cfg=None):
     route = np.asarray(route, float)
     min_deg = float((cfg or {}).get("brake_board_min_deg", BOARD_MIN_DEG))
     segs = _fence_segments(cfg) if cfg else np.zeros((0, 4))
+    obstacles = _obstacles(cfg) if cfg and cfg.get("slug") else (np.zeros((0, 3)), np.zeros((0, 4)))
     if len(route) < 142:
         return []
     samples_xyz, along = _route_samples(route)
@@ -170,14 +220,20 @@ def _board_plan(route, clear, cfg=None):
     result = []
     for corner in sorted(corners):
         for distance in (100, 50):
-            s = corner - distance
-            head, side = wf._heading(xy, s)
-            for offset in (3.5, 4.0, 4.5, 5.0, 6.0, 7.0, 8.0, 9.0):
-                locations = [xy[s] + sign * side * offset for sign in (1, -1)]
-                point = next((p for p in locations if clear(p) and not _behind_fence(xy[s], p, segs)), None)
-                if point is not None:
-                    index = np.searchsorted(along, s, side="right") - 1
-                    result.append((distance, s, np.r_[point, route[index, 2]], np.r_[point + head, route[index, 2]]))
+            done = False
+            for shift_m in (0, -3, 3, -6, 6, -9, 9):         # a prop in the way: slide the board along the road before giving up
+                s = corner - distance + shift_m
+                head, side = wf._heading(xy, s)
+                for offset in np.arange(2.5, 9.01, 0.5):     # the nearest free spot on either side
+                    locations = [xy[s] + sign * side * offset for sign in (1, -1)]
+                    point = next((p for p in locations if clear(p) and not _behind_fence(xy[s], p, segs)
+                                  and not _blocked(xy[s], p, obstacles)), None)
+                    if point is not None:
+                        index = np.searchsorted(along, s, side="right") - 1
+                        result.append((distance, s, np.r_[point, route[index, 2]], np.r_[point + head, route[index, 2]]))
+                        done = True
+                        break
+                if done:
                     break
     return result
 
@@ -651,6 +707,12 @@ def add(dst, root, cfg, route, shift, ground, log):
             wr_acrnets.add(dst, root, cfg, to_ue, ground, log)
     except Exception as e:                      # the stage keeps its WRCG nets' absence only if this fails: say so
         log(f"ACR nets: not added ({type(e).__name__}: {e})")
+    try:
+        import wr_fencerow
+        if wr_fencerow.options(cfg):
+            wr_fencerow.add(dst, root, cfg, route, to_ue, shift, ground, log)
+    except Exception as e:                      # the old wall is already gone: say it, do not stop the export
+        log(f"fence rows: not added ({type(e).__name__}: {e})")
     if on(cfg, "brake_boards"):
         try:
             boards = _board_plan(route, clear, cfg)

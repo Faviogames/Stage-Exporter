@@ -18,6 +18,7 @@ custom/data/<name>.json replaces the tool's data file <name>.json; custom/data/<
 import importlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -193,13 +194,15 @@ def _patch_run(pl):
 
     def run(wrcg, acr, slugs, *a, **k):
         paks = Path(acr) / "acr" / "Content" / "Paks"
+        mods = paks / "~mods"                    # the pack lives here (owner 2026-11-16: works in ~mods); the core installs into Paks
+        dirs = [d for d in (paks, mods) if d.exists()]
         # a run cut short (owner 2026-11-10: the PC restarted during an export) left the pack aside: it goes back first
-        for g in paks.glob(ASIDE_PREFIX + pl.OWN_PACK_PREFIX + "*.bak") if paks.exists() else []:
+        for g in [x for d in dirs for x in d.glob(ASIDE_PREFIX + pl.OWN_PACK_PREFIX + "*.bak")]:
             f = g.with_name(g.name[len(ASIDE_PREFIX):-len(".bak")])
             if not f.exists():
                 g.rename(f)
         aside = []
-        for f in paks.glob(pl.OWN_PACK_PREFIX + "*") if paks.exists() else []:
+        for f in [x for d in dirs for x in d.glob(pl.OWN_PACK_PREFIX + "*")]:
             # a name the pipeline does not take for our pack and an extension ACR does not load
             g = f.with_name(ASIDE_PREFIX + f.name + ".bak")
             if g.exists():
@@ -213,10 +216,16 @@ def _patch_run(pl):
                 if not f.exists():
                     g.rename(f)
             raise
+        fresh = list(paks.glob(pl.OWN_PACK_PREFIX + "*")) if paks.exists() else []
+        if fresh:                                # newly installed in Paks: moved to ~mods
+            mods.mkdir(exist_ok=True)
+            for f in fresh:
+                (mods / f.name).unlink(missing_ok=True)
+                shutil.move(str(f), str(mods / f.name))
         for g, f in aside:
-            if f.exists():                       # a new pack was installed in its place
+            if fresh:                            # a new pack was installed: the old one goes
                 g.unlink(missing_ok=True)
-            else:                                # nothing installed (--wrcg-only, no --install): the old one goes back
+            elif not f.exists():                 # nothing installed (--wrcg-only, no --install): the old one goes back
                 g.rename(f)
         return out
 

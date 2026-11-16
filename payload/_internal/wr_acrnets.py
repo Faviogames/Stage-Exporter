@@ -216,10 +216,10 @@ def add_nets(dst, source, groups, o, to_ue, ground, log):
     return n_spans, n_poles
 
 
-def add_barriers(dst, source, items, kg, to_ue, ground, log):
+def add_barriers(dst, source, items, kg, to_ue, ground, log, places=None, prefix="WrcgAcrBarrier"):
     """ACR's physical plastic barriers (a BC_PhysicsActor_C of Munster with SM_PlasticBarrierAFix) along `items`."""
     import wr_rvt
-    places = barrier_places(items)
+    places = barrier_places(items) if places is None else places     # places: [(centre xyz, heading xy)], WRCG metres
     if not places:
         return 0
     src = next(i for i in range(1, len(source.exports) + 1) if source.class_name(i) == "BC_PhysicsActor_C"
@@ -228,7 +228,7 @@ def add_barriers(dst, source, items, kg, to_ue, ground, log):
     for n, (c, h) in enumerate(places):
         p, q = to_ue([c, c + np.r_[h, 0.0]])
         x, y, z = map(float, p)
-        a = rs._clone(dst, source, src, level, f"WrcgAcrBarrier_{n}", {src_level: level})
+        a = rs._clone(dst, source, src, level, f"{prefix}_{n}", {src_level: level})
         _, comp, prop = wf._mesh_of(dst, a)
         old = prop["Value"]
         new = dst.ensure_import(wr_rvt._key(BARRIER_PKG + "SM_PlasticBarrierAFix", "StaticMesh"))

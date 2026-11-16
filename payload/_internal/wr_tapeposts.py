@@ -198,7 +198,9 @@ def _physical_roadside_props(dst, legacy_root, saved_start, cfg, shift, log):
             footprint = (_panel_footprint(origin, extent, loc, rot, scale) - frame[0]) @ inverse
         else:
             footprint = xy + [[-0.12, -0.12], [-0.12, 0.12], [0.12, -0.12], [0.12, 0.12], [0, 0]]
-        if clear(footprint):
+        # Sticks at the verge overlap the road raster's margin (226 of 602 on Ngema, 22 of 26 near m 3491): left out they stay the
+        # core's NoCollision originals and never fall (owner 2026-11-16: "a veces cae y a veces no"). "tape_stick_on_road": false = old rule.
+        if clear(footprint) or (not panel and roadside.on(cfg, "tape_stick_on_road")):
             todo.append((i, old, mesh, path, panel))
     if not todo:
         return 0

@@ -45,6 +45,7 @@ def before(module, args):
             start_pos_alias(slug)
             _drop_pacenote_tokens(slug)
             _drop_rocks(slug)
+            _drop_collision(slug)
         import wr_pack
         wr_pack.patch_cache()
         wr_skinned.patch_props(_stage_info)
@@ -242,6 +243,40 @@ def _drop_rocks(slug):
     import os
     os.utime(orig, ns=(f.stat().st_atime_ns, f.stat().st_mtime_ns))      # same time: only a newer instances.json counts as new
     print(f"    [{slug}] drop rocks: {dropped[0]} stones/rocks within {zones} left out of the vegetation")
+
+
+def _drop_collision(slug):
+    """Stage build "drop_collision": [{"node_id": "1190063953"}, ...]: the collision of those owners of
+    work/wrcg/<slug>/collision_extra.npz (props, spawners; see its owner_node_id) is left out of the build: its triangles
+    are removed from the file. The first run keeps the original as collision_extra.before_drop.npz (refreshed when a new
+    WRCG export rewrote the file) and every run filters that copy. Owner 2026-11-16, Ngema m ~2970: a grey wall that
+    could not be crossed (the collision of two rows of CATTLE_BARRIER_01)."""
+    import os
+    import shutil
+    import numpy as np
+    rows = (_cfg(slug) or {}).get("drop_collision") or []
+    f = WORK / "wrcg" / slug / "collision_extra.npz"
+    orig = f.with_name("collision_extra.before_drop.npz")
+    if not rows and orig.exists():                        # the list was emptied: put the original collision back
+        shutil.copyfile(orig, f)
+        orig.unlink()
+        print(f"    [{slug}] drop collision: original collision restored")
+        return
+    if not rows or not (f.exists() or orig.exists()):
+        return
+    if not orig.exists() or f.stat().st_mtime_ns > orig.stat().st_mtime_ns:
+        shutil.copyfile(f, orig)
+    d = dict(np.load(orig, allow_pickle=True))
+    ids = {str(r["node_id"]) for r in rows}
+    owners = [i for i, n in enumerate(d["owner_node_id"]) if str(n) in ids]
+    n_tri = len(d["triangles"])
+    keep = ~np.isin(d["tri_piece"], owners)
+    for k, v in list(d.items()):
+        if hasattr(v, "__len__") and not isinstance(v, str) and len(v) == n_tri and k.startswith(("tri", "triangles")):
+            d[k] = np.asarray(v)[keep]
+    np.savez(f, **d)
+    os.utime(orig, ns=(f.stat().st_atime_ns, f.stat().st_mtime_ns))
+    print(f"    [{slug}] drop collision: {len(owners)} owners, {int((~keep).sum())} triangles left out of {n_tri}")
 
 
 def _fix_missing_materials(slug, mod="wrcg_stages"):
@@ -1009,6 +1044,14 @@ def _add_crowd(dst):
             print(f"    [{slug}] auto crowd: {len(chosen)} clusters, {len(extra)} spectators at route m {[round(c) for c in sorted(chosen)]}")
         except Exception as e:
             print(f"    [{slug}] auto crowd: not added ({type(e).__name__}: {e})")
+    if cfg.get("crowd_drop"):                         # [{"at": [x, y], "radius": r}] WRCG metres: spectators standing there are left out
+        n0 = len(spots)
+        def gone(q, r):                                   # {"at", "radius"} or {"box": [x0, y0, x1, y1], "zmin": z}
+            if "box" in r:
+                return r["box"][0] <= q[0] <= r["box"][2] and r["box"][1] <= q[1] <= r["box"][3] and q[2] >= float(r.get("zmin", -1e9))
+            return float(np.hypot(q[0] - r["at"][0], q[1] - r["at"][1])) <= float(r.get("radius", 1.0))
+        spots = [(g, q) for g, q in spots if not any(gone(q, r) for r in cfg["crowd_drop"])]
+        print(f"    [{slug}] crowd_drop: {n0 - len(spots)} spectator spots left out")
     if not spots:
         print(f"    [{slug}] crowd: no WRCG spectator nodes under {tag}, skipped")
         return
@@ -1093,6 +1136,18 @@ def _patch_ground_cover_materials():
         mesh = str(k.get("mesh") or "").split(".")[0]
         mats = wr_groundcover.MATERIALS.get(species) or wr_groundcover.MESH_MATERIALS.get(mesh) or \
             _snow_tree_materials(k.get("mesh")) or _far_tree_materials(k.get("mesh")) or _stone_materials(k.get("mesh"))
+        if mats and any("_RVT_" in m for m in mats):         # universal: lighter grass (wr_grasslight.py), "grass_light": false = off
+            try:
+                import tools.acrmod.stagectx as sc
+                import wr_grasslight
+                slug = sc.cur().slug
+                cfg = _cfg(slug) or {}
+                opts = wr_grasslight.options(cfg)
+                legacy = next(iter(sorted((WORK / "acr" / "mods").glob(f"*/stages/{slug}/legacy"))), None)
+                if opts and legacy is not None:
+                    mats = wr_grasslight.materials_for(mats, opts, cfg["name"], legacy)
+            except Exception as e:
+                print(f"    grass light: stock materials kept ({type(e).__name__}: {e})")
         if mats:
             import wr_rvt
             tmpl_p = json.loads(wr_rvt.PROP_RVT.read_text())
@@ -1470,6 +1525,41 @@ def _prop_zones():
         return []
 
 
+def _props_at(insts):
+    """Stage build "props_at": [{"psi": regex, "at": [x, y], "radius": r, "zmin": z0, "zmax": z1, "action": "drop" | "sink", "m": 0.3}]
+    (WRCG world metres): the props whose name matches and that stand within r of the point (and between zmin and zmax, optional)
+    are dropped, or lowered by m. Owner 2026-11-16, Ngema m ~2970: floating chairs, market stalls 0.3 m above the ground.
+    The WRCG collision (collision_extra.npz) of a lowered prop stays where it was."""
+    import re
+    import numpy as np
+    import tools.acrmod.stagectx as sc
+    rows = (_cfg(sc.cur().slug) or {}).get("props_at") or []
+    if not rows:
+        return insts
+    def inside(r, W):
+        if "box" in r:                                  # [x0, y0, x1, y1]
+            x0, y0, x1, y1 = r["box"]
+            return x0 <= W[0, 3] <= x1 and y0 <= W[1, 3] <= y1
+        return float(np.hypot(W[0, 3] - r["at"][0], W[1, 3] - r["at"][1])) <= float(r.get("radius", 1.0))
+    rules = [(re.compile(r["psi"], re.I), r, r.get("zmin", -1e9), r.get("zmax", 1e9), r.get("action", "drop"), float(r.get("m", 0.0))) for r in rows]
+    out, done = [], [0] * len(rules)
+    for p in insts:
+        W = np.asarray(p.world, float)
+        hit = next((k for k, (rx, r, z0, z1, _, _) in enumerate(rules)
+                    if rx.fullmatch(p.psi_name or "") and inside(r, W) and z0 <= W[2, 3] <= z1), None)
+        if hit is None:
+            out.append(p)
+            continue
+        done[hit] += 1
+        if rules[hit][4] == "sink":
+            W = W.copy()
+            W[2, 3] -= rules[hit][5]
+            p.world = W
+            out.append(p)
+    print("    props_at: %d props changed (%s)" % (sum(done), ", ".join("%s x%d" % (r["psi"], n) for r, n in zip(rows, done))))
+    return out
+
+
 def _in_prop_zone(p, zones):
     import numpy as np
     R, zs = zones[0]
@@ -1492,6 +1582,7 @@ def _drop_hanging(insts):
     except Exception:
         extra = ()
     zones = _prop_zones()
+    insts = _props_at(insts)
     for p in insts:
         name = (p.psi_name or "").upper()
         if extra and any(w in name for w in extra):
@@ -1582,7 +1673,9 @@ def _seats_ue(shift):
 
 FENCE_LINK_M = 7.0                 # posts of one fence spawner closer than this are joined by a wall
 FENCE_H = (0.25, 1.4)              # wall from this far above the post's foot to this height (m)
-FENCE_KEEP_OFF_M = 2.0             # a link that crosses the route or passes this close to it is a gate: left open
+PROP_FENCE_RE = __import__("re").compile(r"(WOOD|METAL|WIRE|BARB)\w*FENCE|FENCE\w*(BARB|WIRE|WOOD)", __import__("re").I)   # props that are a fence themselves
+FENCE_KEEP_OFF_M = 2.0
+PROP_FENCE_KEEP_OFF_M = 1.2         # a prop fence closer to the route's centre line than this is a gate / on the lane: left open             # a link that crosses the route or passes this close to it is a gate: left open
 
 
 def _fence_collision(slug, offset):
@@ -1610,14 +1703,36 @@ def _fence_collision(slug, offset):
                 return True
         return False
 
-    def near_route(a, b):
+    def near_route(a, b, d=FENCE_KEEP_OFF_M):
         for t in np.linspace(0.0, 1.0, 5):
             q = a + (b - a) * t
-            if np.hypot(R[:, 0] - q[0], R[:, 1] - q[1]).min() < FENCE_KEEP_OFF_M:
+            if np.hypot(R[:, 0] - q[0], R[:, 1] - q[1]).min() < d:
                 return True
         return False
 
-    pos, tri, n, links, gates = [], [], 0, 0, 0
+    prop_groups = set()
+    try:                                 # fences made of plain props with no collision at all (Ngema's WOOD_FENCE_BARBWIRE_01_BRK, owner 2026-11-16)
+        import tools.wrcg.prop_instances as pi
+        import wr_skinned
+        cfg = _cfg(slug) or {}
+        insts, _ = pi.collect_instances(cfg["wrcg_level"], ("static", "dynamic", "clutter", "spline", "decor"), route_xy=R, near_m=60.0,
+                                        stage_mask=wr_skinned.stage_mask(cfg.get("stage_id")))
+        lo_all, hi_all = d0["owner_bbox_min"][:, :2], d0["owner_bbox_max"][:, :2]
+        for q in insts:
+            if q.category != "decor" or not PROP_FENCE_RE.search(q.psi_name or ""):
+                continue
+            W = np.asarray(q.world, float)
+            if len(lo_all) and ((W[0, 3] > lo_all[:, 0] - 0.3) & (W[0, 3] < hi_all[:, 0] + 0.3) & (W[1, 3] > lo_all[:, 1] - 0.3) & (W[1, 3] < hi_all[:, 1] + 0.3)).any():
+                continue                 # already has a collision of its own
+            key = str(q.path).rsplit("/", 1)[0]
+            prop_groups.add(key)
+            groups[key].append((W[0, 3], W[1, 3], float(W[2, 3]), float(W[2, 3])))
+    except Exception as e:
+        print(f"    wire fences: prop fences not read ({type(e).__name__}: {e})")
+    from wr_roadside import _road_test
+    on_road = _road_test(WORK / "wrcg" / slug, margin_cells=1)
+
+    pos, tri, n, links, gates, close = [], [], 0, 0, 0, 0
     for g, P in groups.items():
         P = np.asarray(P, float)
         done = set()
@@ -1628,9 +1743,11 @@ def _fence_collision(slug, offset):
                     continue
                 done.add((min(i, j), max(i, j)))
                 a, b = P[i, :2], P[j, :2]
-                if crosses(a, b) or near_route(a, b):
-                    gates += 1
+                if crosses(a, b) or (g not in prop_groups and near_route(a, b)) or (g in prop_groups and near_route(a, b, PROP_FENCE_KEEP_OFF_M)) or (g not in prop_groups and not on_road(np.array([a, (a + b) / 2, b]))):
+                    gates += 1               # a gate across the road (a post fence on the road mesh is skipped; a prop fence is always closed: owner 2026-11-16, Ngema km 3.3 gaps)
                     continue
+                if g in prop_groups and near_route(a, b):
+                    close += 1
                 z0, z1 = [min(P[i, 2], P[j, 2]) + h for h in FENCE_H]
                 pos.append(np.array([[a[0], a[1], z0], [b[0], b[1], z0], [b[0], b[1], z1], [a[0], a[1], z1]]))
                 tri += [[n, n + 1, n + 2], [n, n + 2, n + 3], [n, n + 2, n + 1], [n, n + 3, n + 2]]
@@ -1642,7 +1759,7 @@ def _fence_collision(slug, offset):
     d["tri_piece"] = np.zeros(len(d["triangles"]), np.uint16)
     d["tri_slot_sub"] = np.zeros(len(d["triangles"]), np.uint16)
     ms = ic._meshes_from(d, np.ones(len(d["triangles"]), bool), offset, "WrcgFence", lambda t: "PM_WallWood")
-    print(f"    wire fences: {links} walls between posts ({gates} links across or beside the road left open)")
+    print(f"    wire fences: {links} walls between posts ({gates} links across or beside the road left open; {close} prop-fence walls within {FENCE_KEEP_OFF_M:g} m of the route)")
     return list(ms)
 
 
@@ -2057,9 +2174,12 @@ def _stone_materials(mesh):
     import wr_snowtrees as st
     slug = sc.cur().slug
     cfg = _cfg(slug) or {}
-    rgb = cfg.get("stone_tint")
+    light = cfg.get("stone_light", 1.0)                  # OFF by default: the 30 % lighter stones (2026-11-16) "se ven horribles"; a factor > 1 = lighter
+    rgb = cfg.get("stone_tint") or ([1.0, 1.0, 1.0] if light and light != 1 else None)
     if not rgb:
         return None
+    if light and light != 1:
+        rgb = [float(v) * float(light) for v in rgb]
     legacy = next(iter(sorted((WORK / "acr" / "mods").glob(f"*/stages/{slug}/legacy"))), None)
     if legacy is None:
         print(f"    stones: no build folder for {slug}, stock material kept")
@@ -2738,7 +2858,8 @@ def _drop_pacenote_tokens(slug):
     """"pacenote_drop_tokens": ["WATER"]: those words are taken out of the stage's pacenote calls (work/wrcg/<slug>/
     pacenotes.json; the original kept as pacenotes.orig.json, so it is redone from it every build). Owner 2026-11-15:
     Seyabei's co-driver said "water" and there is none in ACR."""
-    words = {str(w).upper() for w in (_cfg(slug) or {}).get("pacenote_drop_tokens") or ()}
+    cfg = _cfg(slug) or {}
+    words = {str(w).upper() for w in (cfg["pacenote_drop_tokens"] if "pacenote_drop_tokens" in cfg else ["WATER"])}      # ACR has no water: universal default
     f = WORK / "wrcg" / slug / "pacenotes.json"
     if not words or not f.exists():
         return
@@ -3168,6 +3289,33 @@ def _patch_level_save():
     ug.UMap.save = save
 
 
+def _fill_light_positions(cfg, route):
+    """Stage build "fill_lights": the "net_fill" rows (wr_lights.net_fill_positions: m, every_m, toward_m, height_m, cd, radius_cm)
+    whose "material" is "ROCK" (the level's rock props: MALAYSIA_CLIFF, M_RED_ROCK, ...) or "CROWD" (WRCG's spectator spots).
+    Owner 2026-11-16, Ngema m ~105: dark rocks and crowd, "la misma potencia que los plasticos"."""
+    import re
+    import numpy as np
+    import tools.acrmod.build_stage as bs
+    import tools.wrcg.prop_instances as pi
+    import wr_crowd
+    import wr_lights
+    import wr_skinned
+    need = {str(z.get("material", "")).upper() for z in cfg["fill_lights"]}
+    items = []
+    if "ROCK" in need:
+        out, _ = pi.collect_instances(cfg["wrcg_level"], ("static", "dynamic", "clutter", "spline", "decor"), route_xy=np.asarray(route, float)[:, :2],
+                                      near_m=150.0, stage_mask=wr_skinned.stage_mask(cfg.get("stage_id")))
+        items += [{"pos": np.asarray(p.world, float)[:3, 3], "material": "ROCK", "scale": float(np.cbrt(abs(np.linalg.det(np.asarray(p.world, float)[:3, :3]))))} for p in out
+                  if re.search(r"ROCK|CLIFF|BOULDER", str(p.psi_name), re.I) and "WrcgScene" not in str(p.name)]
+    if "CROWD" in need:
+        level = cfg["wrcg_level"]
+        tag = cfg.get("crowd_tag") or cfg["stage_id"].split("/")[-1]
+        plm = WORK / "wrcg_fs" / "WIN32" / "LEVELS" / level / f"{level}.PLM"
+        spots = wr_crowd.wrcg_spectators(plm, tag) or (wr_crowd.wrcg_spectators(plm, tag[:-1]) if tag.endswith("R") else [])
+        items += [{"pos": np.asarray(p, float)[:3], "material": "CROWD"} for _, p in spots]
+    return wr_lights.net_fill_positions(cfg["fill_lights"], items, route)
+
+
 def _late_level(dst):
     import numpy as np
     import tools.acrmod.build_stage as bs
@@ -3224,6 +3372,12 @@ def _late_level(dst):
             log(f"net fill: {wr_lights._add_fill_lights(dst, ROOT, shift, pos, 'WrcgNetFill')} lights along {cfg['net_fill']}")
         except Exception as e:
             log(f"net fill: not added ({type(e).__name__}: {e})")
+    if cfg.get("fill_lights"):
+        try:
+            pos = _fill_light_positions(cfg, route)
+            log(f"fill lights: {wr_lights._add_fill_lights(dst, ROOT, shift, pos, 'WrcgPropFill')} lights over {len(cfg['fill_lights'])} zones (rocks / crowd)")
+        except Exception as e:
+            log(f"fill lights: not added ({type(e).__name__}: {e})")
     if cfg.get("rvt"):
         import wr_rvt
         tiles = [i for i in range(1, len(dst.exports) + 1) if dst.exp(i)["ObjectName"].startswith(wr_rvt.TERRAIN_PREFIX)]

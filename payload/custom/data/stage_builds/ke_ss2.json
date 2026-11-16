@@ -116,7 +116,9 @@
     "2026-11-16: STICK01 drop restricted to posts within 0.6 m of a LARGENET_GREEN piece (near_cloth); posts of the red net stay.",
     "2026-11-16: acr_nets (wr_acrnets.py): red nets -> ACR BC_LargeTapeActor orange on wooden beams (pole_kg 9 = 2x the estimated stock mass), green too except 'keep' m 3030-3110; red nets in 'barriers' m 3030-3110 -> ACR physical plastic barriers white/red. Not driven in game.",
     "2026-11-16 (after the test drive): WRCG nets stay everywhere (acr_nets.nets false: ACR's net looked small and torn); only the red net of m 3030-3110 becomes ACR plastic barriers (240 kg each = 2x). Fixed: WRCG sticks of those pieces now leave (replaces_stick checked wrcg_tape_post_physics first) and net_fill lights read the unfiltered cloth so the barriers keep their light.",
-    "2026-11-16: green net restored outside the rocks: cloth_skip only m 3049-3088 (pieces up to m 3048 and from 3089 are >= 2.2 m from the rocks); STICK01 near_cloth drop now only for posts at the pieces still left out and not at a kept piece's end."
+    "2026-11-16: green net restored outside the rocks: cloth_skip only m 3049-3088 (pieces up to m 3048 and from 3089 are >= 2.2 m from the rocks); STICK01 near_cloth drop now only for posts at the pieces still left out and not at a kept piece's end.",
+    "2026-11-16 (owner): net_fill cd 5000 -> 3500, the level of Ngema's km 1.6 lights that the owner found good.",
+    "2026-11-16 (owner): artificial fill lights at 3000 cd in both (Ngema fence_rows, Seyabei net_fill)."
   ],
   "export": {
     "vegetation": "replay",
@@ -243,7 +245,7 @@
       "every_m": 20,
       "toward_m": 5.0,
       "height_m": 8.0,
-      "cd": 5000,
+      "cd": 3000,
       "radius_cm": 2500
     }
   ],

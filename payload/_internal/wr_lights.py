@@ -243,7 +243,7 @@ def fix_sign_lighting(dst, root, route, shift, ground, cfg, log=print):
 
 def net_fill_positions(zones, items, route):
     """Stage build "net_fill": [{"m": [from, to], "material": "NET_RED", "every_m": 20, "toward_m": 5, "height_m": 8, "cd": 8000,
-    "radius_cm": 2500}]: for the cloth pieces (the core's collect_cloth items) of that material along that stretch of the route,
+    "radius_cm": 2500, "per_side": false, "min_scale": 0}]: for the cloth pieces (the core's collect_cloth items) of that material along that stretch of the route,
     one high, broad, shadowless light per every_m metres, over the pieces' centre moved toward the road, so the net's road-facing
     side gets the light and the ground gets no spot (like the vehicles' lights, owner 2026-11-16). [(WRCG xyz, radius cm, cd)]."""
     import re
@@ -258,9 +258,15 @@ def net_fill_positions(zones, items, route):
             if not rx.search(str(it.get("material", ""))):
                 continue
             p = np.asarray(it["pos"], float)
+            if it.get("scale", 1e9) < float(z.get("min_scale", 0.0)):
+                continue
             i = int(np.hypot(R[:, 0] - p[0], R[:, 1] - p[1]).argmin())
             if a <= i <= b:
-                groups.setdefault(int((i - a) // every), []).append((p, i))
+                side = 0
+                if z.get("per_side"):                       # one group per side of the road (+1 left of travel, -1 right)
+                    h = R[min(i + 3, len(R) - 1), :2] - R[max(i - 3, 0), :2]
+                    side = 1 if (-h[1] * (p[0] - R[i, 0]) + h[0] * (p[1] - R[i, 1])) > 0 else -1
+                groups.setdefault((int((i - a) // every), side), []).append((p, i))
         for g in groups.values():
             P = np.mean([p for p, _ in g], axis=0)
             i = int(np.mean([i for _, i in g]))

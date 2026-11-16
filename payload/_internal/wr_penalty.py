@@ -34,6 +34,8 @@ REF_AT = (6, 10, 14, 22)                 # RootComponent, two component refs, th
 GUID_AT = 58                             # 16 bytes: the actor's GUID (a copy would share it)
 SIDE_M = 1.0                             # the cone stands this far from the spectator, toward the road
 CELL_M = 3.0                             # one cone per cell of this size
+FINISH_CELL_M = 1.5                      # cone spacing in the last FINISH_DENSE_M route points (about metres)
+FINISH_DENSE_M = 150
 MAX_CONES = 500                          # the automatic clusters come last in the spots: 160 ended before them (owner test 2026-11-14)
 
 
@@ -101,7 +103,8 @@ def cone_points(spots_ue, route_ue, near_m=(3.0, 120.0)):
         i = int(d.argmin())
         if not (near_m[0] * 100 <= d[i] <= near_m[1] * 100):
             continue
-        k = (int(p[0] // (CELL_M * 100)), int(p[1] // (CELL_M * 100)))
+        cell = FINISH_CELL_M if i >= len(R) - FINISH_DENSE_M else CELL_M       # the finish crowd: a denser wall of cones (owner 2026-11-16: walked through)
+        k = (cell, int(p[0] // (cell * 100)), int(p[1] // (cell * 100)))
         if k in seen:
             continue
         seen.add(k)
