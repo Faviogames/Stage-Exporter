@@ -1,0 +1,14 @@
+Stage Exporter 1.6.1
+
+Descarga para instalar: Stage-Exporter-v1.6.1-Instalar.zip
+Extrae su contenido directamente en la carpeta de Sando y ejecuta INSTALAR.bat. Dentro del ZIP aparecen payload/, INSTALAR.bat y las guías, sin una carpeta contenedora.
+
+- El actualizador acepta el ZIP directo y el formato anterior.
+- Los usuarios de 1.6 pueden actualizar desde la aplicación. El paquete Stage-Exporter-v1.6.1.zip conserva el formato que necesita ese actualizador; no hace falta descargarlo manualmente.
+- Se conservan los ajustes existentes, las imágenes, los tramos y las cachés durante la actualización desde la aplicación.
+- Este parche solo modifica el actualizador, el empaquetado y las guías; no cambia la posición de los comisarios ni los mapas.
+
+Manual install: download the ZIP ending in -Instalar.zip. Extract directly into Sando's tool folder and run INSTALAR.bat. No enclosing folder.
+The other ZIP is the automatic-update compatibility package for version 1.6.
+
+Validation: both layouts, malicious paths, checksum failures, settings preservation, rollback, isolated old 1.6 -> 1.6.1 migration and installation of the flat package. Automatic UI restart not exercised.

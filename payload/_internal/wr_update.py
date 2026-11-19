@@ -12,7 +12,7 @@ import urllib.request
 import zipfile
 from pathlib import Path, PurePosixPath
 
-VERSION = '1.6'
+VERSION = '1.6.1'
 REPO = 'Faviogames/Stage-Exporter'
 API = f'https://api.github.com/repos/{REPO}/releases/latest'
 MAX_ZIP = 50 * 1024 * 1024
@@ -35,8 +35,8 @@ def latest():
         data = json.loads(response.read(1024 * 1024))
     if data.get('draft') or data.get('prerelease') or version(data['tag_name']) <= version(VERSION):
         return None
-    asset = next(a for a in data.get('assets', [])
-                 if a['name'] == f"Stage-Exporter-{data['tag_name']}.zip")
+    names = [f"Stage-Exporter-{data['tag_name']}-Instalar.zip", f"Stage-Exporter-{data['tag_name']}.zip"]
+    asset = next(a for name in names for a in data.get('assets', []) if a['name'] == name)
     expected = f"https://github.com/{REPO}/releases/download/{data['tag_name']}/{asset['name']}"
     if asset.get('browser_download_url') != expected or not 0 < asset['size'] <= MAX_ZIP:
         raise ValueError('Invalid update asset')
@@ -73,16 +73,17 @@ def install(asset, root):
                     raise ValueError('Unsafe update path')
                 if info.is_dir():
                     continue
-                if len(p.parts) < 4 or p.parts[:2] != ('Stage Exporter', 'payload'):
+                parts = p.parts[1:] if p.parts[:1] == ('Stage Exporter',) else p.parts
+                if len(parts) < 3 or parts[0] != 'payload':
                     continue
-                rel = Path(*p.parts[2:])
-                if p.parts[2] not in ('_internal', 'custom'):
+                rel = Path(*parts[1:])
+                if parts[1] not in ('_internal', 'custom'):
                     raise ValueError('Unexpected update folder')
-                if p.parts[2] == '_internal' and not (
-                    len(p.parts) == 4 and p.name.startswith('wr') and p.suffix == '.py'
-                    or p.parts[3] == 'wr_assets' and p.suffix in ('.ico', '.cs', '.png')):
+                if parts[1] == '_internal' and not (
+                    len(parts) == 3 and p.name.startswith('wr') and p.suffix == '.py'
+                    or parts[2] == 'wr_assets' and p.suffix in ('.ico', '.cs', '.png')):
                     raise ValueError('Unexpected add-on file')
-                if p.parts[2] == 'custom' and p.suffix != '.json':
+                if parts[1] == 'custom' and p.suffix != '.json':
                     if p.name == 'LEEME.txt':
                         continue
                     raise ValueError('Unexpected settings file')
@@ -93,7 +94,7 @@ def install(asset, root):
                 if key in seen:
                     raise ValueError('Duplicate update file')
                 seen.add(key)
-                if p.parts[2] == 'custom' and dest.exists():
+                if parts[1] == 'custom' and dest.exists():
                     continue
                 src = tmp / 'new' / rel
                 src.parent.mkdir(parents=True, exist_ok=True)

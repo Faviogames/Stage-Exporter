@@ -9,7 +9,7 @@ Assetto Corsa Rally (ACR) stage pack, and lets you share stages as single ".stag
 1. WHAT YOU NEED (once)
 -----------------------
 - Sando Rally's Stage Export Tool v0.3.7.
-- This add-on, installed: put the "Stage Exporter" folder next to Sando-Rally-Stage-Export-Tool.exe and run INSTALAR.bat.
+- This add-on, installed: extract the -Instalar.zip directly into the Sando tool folder and run INSTALAR.bat. No enclosing folder is needed.
 - WRC Generations and Assetto Corsa Rally installed from Steam (builds listed in README_INSTALLER.txt).
 - Then open "WRC to ACR Stage Exporter.exe" (it appears in the tool folder after INSTALAR.bat).
 
@@ -73,3 +73,6 @@ The other stages of the pack are reused, not built again. Keep the PC free while
 
 AUTOMATIC UPDATES (1.6+)
 At every launch, the app checks GitHub for a newer stable release. Accept the prompt to download, verify, install and restart. Existing settings, pictures, stages and caches are preserved. Offline use still works. Users on 1.5 or older must install 1.6 manually once. Rebuild a stage to apply rendering changes; Update pack reuses its existing cache.
+
+PACKAGING (1.6.1+)
+For manual installation download the ZIP ending in -Instalar.zip. It opens directly to payload/, INSTALAR.bat and the guides. The other ZIP is for automatic updates from 1.6. Both versions are accepted by the new updater.
