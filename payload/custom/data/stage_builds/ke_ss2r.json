@@ -63,7 +63,8 @@
     "KE_KENYA/SS2R: Seyabei reverse, Safari Rally Kenya, 6249 m, gravel; WRCG tag SS2R.",
     "2026-11-15 (owner: enable the other Kenya stages): Kenya settings of ke_ss2 copied (decals off, red road, terrain match, solid nets/fences/rocks, own spawners, crowd 20 s penalty, auto crowd, animals of tag SS2, support vehicles, stop control 100 m). Untested on this stage.",
     "2026-11-16: Seyabei's settled defaults copied to every Kenya stage (sky, tree_visibility_tuning, cloth_tint, drop_psi, water, decal_drop, decal_min_side_m, corner_post_min_deg, corner_post_gap_m, corner_post_fill_m, greece_gravel_dust, decals->True, pacenote_drop_tokens); originals in analisis/parches/stage_builds_antes_kenya_defaults/.",
-    "2026-11-16 (owner): drop_psi BOUTEILLE removed (only Seyabei needs it)."
+    "2026-11-16 (owner): drop_psi BOUTEILLE removed (only Seyabei needs it).",
+    "2026-11-19 (owner): copied from ke_ss2 the parameters in WRCG coordinates (tree_meshes mix, crowd_add: the pedescontrol). NOT copied: cloth_skip, drop_props_at, net_fill, rocks, road_solid, scene, acr_nets barriers... (route metres, direction and left/right swap in reverse): mirror them when work/wrcg/ke_ss2r exists."
   ],
   "export": {
     "vegetation": "replay",
@@ -135,5 +136,178 @@
   "greece_gravel_dust": true,
   "pacenote_drop_tokens": [
     "WATER"
+  ],
+  "tree_meshes": {
+    "oak": {
+      "mix": [
+        {
+          "mesh": "Fig/SM_Fig01",
+          "weight": 0.25,
+          "scale": [
+            0.7,
+            1.0
+          ]
+        },
+        {
+          "mesh": "Fig/SM_Fig02",
+          "weight": 0.25,
+          "scale": [
+            0.7,
+            1.0
+          ]
+        },
+        {
+          "mesh": "Smoketree/SM_Smoketree02",
+          "weight": 0.11666666666666665,
+          "scale": [
+            0.8,
+            1.1
+          ]
+        },
+        {
+          "mesh": "Smoketree/SM_Smoketree04",
+          "weight": 0.11666666666666665,
+          "scale": [
+            0.8,
+            1.1
+          ]
+        },
+        {
+          "mesh": "Smoketree/SM_Smoketree06",
+          "weight": 0.11666666666666665,
+          "scale": [
+            0.8,
+            1.1
+          ]
+        },
+        {
+          "mesh": "Baretree/SM_Baretree04",
+          "weight": 0.049999999999999996,
+          "scale": [
+            0.3,
+            0.5
+          ]
+        },
+        {
+          "mesh": "Baretree/SM_Baretree05",
+          "weight": 0.049999999999999996,
+          "scale": [
+            0.3,
+            0.5
+          ]
+        },
+        {
+          "mesh": "Baretree/SM_Baretree06",
+          "weight": 0.049999999999999996,
+          "scale": [
+            0.3,
+            0.5
+          ]
+        }
+      ]
+    },
+    "olive": {
+      "mix": [
+        {
+          "mesh": "Fig/SM_Fig01",
+          "weight": 0.25,
+          "scale": [
+            0.6,
+            0.9
+          ]
+        },
+        {
+          "mesh": "Fig/SM_Fig02",
+          "weight": 0.25,
+          "scale": [
+            0.6,
+            0.9
+          ]
+        },
+        {
+          "mesh": "Smoketree/SM_Smoketree02",
+          "weight": 0.11666666666666665,
+          "scale": [
+            0.8,
+            1.1
+          ]
+        },
+        {
+          "mesh": "Smoketree/SM_Smoketree04",
+          "weight": 0.11666666666666665,
+          "scale": [
+            0.8,
+            1.1
+          ]
+        },
+        {
+          "mesh": "Smoketree/SM_Smoketree06",
+          "weight": 0.11666666666666665,
+          "scale": [
+            0.8,
+            1.1
+          ]
+        },
+        {
+          "mesh": "Baretree/SM_Baretree04",
+          "weight": 0.049999999999999996,
+          "scale": [
+            0.3,
+            0.5
+          ]
+        },
+        {
+          "mesh": "Baretree/SM_Baretree05",
+          "weight": 0.049999999999999996,
+          "scale": [
+            0.3,
+            0.5
+          ]
+        },
+        {
+          "mesh": "Baretree/SM_Baretree06",
+          "weight": 0.049999999999999996,
+          "scale": [
+            0.3,
+            0.5
+          ]
+        }
+      ]
+    }
+  },
+  "crowd_add": [
+    {
+      "at": [
+        199.8,
+        -682.2,
+        1886.85
+      ],
+      "n": 3,
+      "depth_m": 0.8,
+      "spread_m": 0.8,
+      "cone_each": true
+    },
+    {
+      "at": [
+        1416.6,
+        -921.8,
+        1887.0
+      ],
+      "n": 4,
+      "depth_m": 0.8,
+      "spread_m": 0.8,
+      "cone_each": true
+    },
+    {
+      "at": [
+        1689.2,
+        -1621.6,
+        1924.5
+      ],
+      "n": 3,
+      "depth_m": 0.8,
+      "spread_m": 0.8,
+      "cone_each": true
+    }
   ]
 }

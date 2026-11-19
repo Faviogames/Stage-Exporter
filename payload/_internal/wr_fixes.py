@@ -18,7 +18,7 @@ Stage build settings they read (data/stage_builds/<slug>.json, all optional):
   "skinned_meshes": true                WRCG's road lines, gutters and spline walls (wr_skinned.py; default on)
   "road_albedo": 0.6                    the road textures' colour times this (linear), for darker asphalt (default 1)
   "greece_gravel_dust": true             native Loutraki wheel particles (wr_gravel.py)
-  "tree_visibility_tuning": true        extend selected tall vegetation visibility (wr_perf.py)
+  "tree_visibility_tuning": true        roadside trees never distance-culled (universal since 2026-11-18, false = off; wr_perf.py)
   "gravel_grip_trial_m": [from, to]      local GravelHard-to-GravelFine comparison (wr_gravel.py)
   "tyre_marks": true                    rubber along the racing line baked into the road, as Munster (wr_tyremarks.py)
   "sign_lighting_m": [from, to]          local advert shadows and brake board visibility, in route metres (wr_lights.py)
@@ -35,6 +35,51 @@ from wr import ROOT
 WORK = ROOT / "work"
 
 VEG_PREFIX = "WrcgVeg_"      # the builder names the vegetation actors WrcgVeg_<species>_<n>[_c<cull>]
+
+
+def _mix_instances(slug, species, mix, log=print):
+    """tree_meshes "mix": [{"mesh": "Fig/SM_Fig01", "weight": 0.25, "scale": [0.7, 1.0]}, ...]: the stage's instances of `species` get
+    a mesh index (position in the mix) drawn by weight and a scale drawn from that entry's range (instances.json, rewritten in place
+    with a fixed seed, so running it twice gives the same file)."""
+    import re
+    import numpy as np
+    f = WORK / "wrcg" / slug / "vegetation" / "instances.json"
+    text = f.read_text(encoding="utf-8")
+    w = np.array([float(e.get("weight", 1.0)) for e in mix])
+    w = w / w.sum()
+    rng = np.random.default_rng(7)
+    n = [0] * len(mix)
+
+    def one(m):
+        k = int(rng.choice(len(mix), p=w))
+        lo, hi = mix[k].get("scale") or (0.7, 1.0)
+        n[k] += 1
+        o = re.sub(r'"mesh": \d+', f'"mesh": {k}', m.group(0), count=1)
+        return re.sub(r'"scale": [-0-9.eE]+', f'"scale": {rng.uniform(lo, hi):.3f}', o, count=1)
+    text = re.sub(r'\{[^{}]*"species": "' + re.escape(species) + r'"[^{}]*\}', one, text)
+    f.write_text(text, encoding="utf-8")
+    log(f"    tree mix: {species} -> " + ", ".join(f"{e['mesh'].rsplit('/', 1)[-1]} {c}" for e, c in zip(mix, n)))
+
+
+def _stage_tree_meshes(slug, log=print):
+    """Stage key "tree_meshes": {"olive": {"meshes": ["Smoketree/SM_Smoketree02", ...], "scale": [lo, hi]}} replaces a species' meshes (and scale) for this stage only."""
+    want = (_cfg(slug) or {}).get("tree_meshes")
+    if not want:
+        return
+    import tools._embedded as em
+    import tools.datafiles as df
+    vm = df.load_json("wrcg_vegetation_map.json")
+    for k, v in want.items():
+        if k in vm.get("acr_species", {}):
+            if v.get("mix"):
+                v = dict(v, meshes=[e["mesh"] for e in v["mix"]])
+                _mix_instances(slug, k, v["mix"], log)
+            upd = {"meshes": ["/Game/Foliage/Trees/" + m for m in v["meshes"]]}
+            if v.get("scale"):
+                upd["scale"] = list(v["scale"])
+            vm["acr_species"][k] = dict(vm["acr_species"][k], **upd)
+            log(f"    tree meshes: {k} -> {', '.join(upd['meshes'])}")
+    em.DATA["wrcg_vegetation_map.json"] = df.scramble(json.dumps(vm, ensure_ascii=False).encode("utf-8"))
 
 
 def before(module, args):
@@ -61,6 +106,7 @@ def before(module, args):
             import wr_snowtrees
             if wr_snowtrees.is_snow(_cfg(one)):       # snowy ACR trees (wr_snowtrees.py)
                 wr_snowtrees.patch_species()
+            _stage_tree_meshes(one)
             _stage_surfaces(one)
         _patch_solid_props()
         _patch_graph_props()
@@ -994,6 +1040,72 @@ def _fix_location_table(name, asset):
 
 # --- spectators ------------------------------------------------------------------------------------------------------
 
+def _start_arch_m(slug):
+    """Route metre (from the route start) of the stage's own start arch (WRCG prop ARCH_START_*, within 12 m of the road and
+    40 m of the start): the countdown marshal stands in line with it (owner 2026-11-18). None when there is none."""
+    import re
+    import numpy as np
+    import tools.acrmod.build_stage as bs
+    import tools.wrcg.prop_instances as pi
+    cfg = bs.load_cfg(slug)
+    R = np.asarray(bs.route_wrcg(cfg), float)
+    s = np.r_[0.0, np.cumsum(np.hypot(*np.diff(R[:, :2], axis=0).T))]
+    collect = getattr(pi.collect_instances, "__wrapped_orig__", None) or pi.collect_instances
+    import wr_skinned
+    props, _ = collect(cfg["wrcg_level"], ("static", "dynamic", "clutter", "spline", "decor"), route_xy=R[:100, :2], near_m=60.0,
+                       stage_mask=wr_skinned.stage_mask(cfg.get("stage_id")))
+    best = None
+    for p in props:
+        if not re.match(r"ARCH_START", str(p.psi_name)):
+            continue
+        t = np.asarray(p.world)[:3, 3]
+        d = np.hypot(R[:, 0] - t[0], R[:, 1] - t[1])
+        j = int(d.argmin())
+        if d[j] <= 12.0 and 0.0 <= s[j] <= 40.0 and (best is None or s[j] < best):
+            best = float(s[j])
+    return None if best is None else round(best, 1)
+
+
+START_MARSHAL_BACK_M = 1.5     # the marshal stands this far toward the car from the start arch (owner 2026-11-19: he touched the giant WRC sign)
+START_BOX_GAP_M = 3.5          # the red box (BC_StartSequenceTrigger, where the car stops) this far before the marshal; Greece SS3 verified
+
+
+def _start_box(dst, route_cm, shift_m, slug, marshal_s_m=None):
+    """The level's start-sequence actors (the red box where the car stops). Universal: BC_StartSequenceTrigger and
+    BC_CompleStartTargetPoint go to START_BOX_GAP_M before the marshal (never back: a shift is clamped to 0..10 m); the stage
+    build "start_box_shift_m" gives the metres by hand (0 = stays). BC_PlayerStartsManager stands elsewhere: only logged."""
+    import re
+    import numpy as np
+    R = np.asarray(route_cm, float)
+    found = []
+    for i in range(1, len(dst.exports) + 1):
+        cn = dst.class_name(i)
+        if not re.search(r"StartSequenceTrigger|CompleStartTarget|PlayerStartsManager", cn or ""):
+            continue
+        e = dst.exp(i)
+        root = next((p for p in e.get("Data") or [] if p.get("Name") == "RootComponent"), None)
+        comp = dst.exp(root["Value"]) if root and isinstance(root.get("Value"), int) and root["Value"] > 0 else None
+        loc = next((p for p in (comp or {}).get("Data") or [] if p.get("Name") == "RelativeLocation"), None)
+        if loc is None:
+            print(f"    [{slug}] start box: {cn} has no RelativeLocation")
+            continue
+        v = loc["Value"][0]["Value"]
+        x, y, z = float(v["X"]), float(v["Y"]), float(v["Z"])
+        k = int(np.argmin(np.hypot(R[:, 0] - x, R[:, 1] - y)))
+        k2 = next((j for j in range(k + 1, len(R)) if np.hypot(*(R[j, :2] - R[k, :2])) >= 200.0), len(R) - 1)
+        s_m = float(np.sum(np.hypot(*np.diff(R[:k + 1, :2], axis=0).T))) / 100.0 if k else 0.0
+        print(f"    [{slug}] start box: {cn} at ({x / 100:.1f}, {y / 100:.1f}, {z / 100:.1f}) m, route m {s_m:.1f} of the pre-start route")
+        found.append((cn, v, x, y, R[k2, :2] - R[k, :2], s_m))
+    if shift_m is None:
+        trig = next((f for f in found if "StartSequenceTrigger" in f[0]), None)
+        shift_m = 0.0 if trig is None or marshal_s_m is None else float(np.clip(marshal_s_m - START_BOX_GAP_M - trig[5], 0.0, 10.0))
+    for cn, v, x, y, d, _ in found:
+        if shift_m and "PlayerStartsManager" not in cn:
+            d = d / max(float(np.hypot(*d)), 1e-6)
+            v["X"], v["Y"] = x + d[0] * shift_m * 100.0, y + d[1] * shift_m * 100.0
+            print(f"    [{slug}] start box: {cn} moved {float(shift_m):+.2f} m along the road")
+
+
 def _patch_crowd():
     import tools.acrmod.start_marshal as sm
     if getattr(sm.add_start_marshal, "_wr", False):
@@ -1001,7 +1113,24 @@ def _patch_crowd():
     orig = sm.add_start_marshal
 
     def add_start_marshal(dst, hs_persistent, route_cm, s_trigger_cm, spawn_cm):
+        import tools.acrmod.stagectx as sc
+        cfg = _cfg(sc.cur().slug) or {}
+        m = cfg.get("start_marshal_m")      # explicit metre; else the stage's own start arch (universal), "start_marshal_m": false = the core's 8 m
+        if m is None:
+            try:
+                m = _start_arch_m(sc.cur().slug)
+                m = None if m is None else max(m - START_MARSHAL_BACK_M, 8.0)    # never nearer than the core's 8 m: the red box stands at route m 5, 3 m before it
+            except Exception as e:
+                print(f"    [{sc.cur().slug}] start arch not found ({type(e).__name__}: {e}): marshal left at the core's 8 m")
+        if m is not None and m is not False:       # the core puts him 8 m after the route start (= Seyabei's arch ARCH_START_KE); the stage's own arch may be elsewhere
+            s_trigger_cm += (float(m) - 8.0) * 100.0
+            print(f"    [{sc.cur().slug}] start marshal at route m {float(m):g} (the core's 8 m moved to the start arch)")
         out = orig(dst, hs_persistent, route_cm, s_trigger_cm, spawn_cm)
+        try:
+            _start_box(dst, route_cm, cfg.get("start_box_shift_m"), sc.cur().slug,
+                       marshal_s_m=(s_trigger_cm + sm.AFTER_TRIGGER_M * 100.0) / 100.0)
+        except Exception as e:
+            print(f"    [{sc.cur().slug}] start box: not handled ({type(e).__name__}: {e})")
         _add_crowd(dst)
         dst._wr_hs = hs_persistent        # source of the RVT volume, used when the level is saved
         return out
@@ -1066,6 +1195,27 @@ def _add_crowd(dst):
             print(f"    [{slug}] scene: {len(more)} spectators added next to the parked vehicles")
     except Exception as e:
         print(f"    [{slug}] scene spectators: not added ({type(e).__name__}: {e})")
+    each_ue = None                                    # "cone_each": true on a crowd_add entry = a penalty cone of its own for each person
+    if cfg.get("crowd_add"):                          # [{"at": [x, y, z], "n": 4, "depth_m": 0.9, "spread_m": 0.9}] WRCG metres: a few spectators
+        more, each = [], []                           # standing behind the tape / fence there, on the side away from the route
+        R = np.asarray(route, float)
+        for r in cfg["crowd_add"]:
+            c = np.asarray(r["at"], float)
+            j = int(np.hypot(R[:, 0] - c[0], R[:, 1] - c[1]).argmin())
+            away = c[:2] - R[j, :2]
+            away = away / max(float(np.hypot(*away)), 1e-6)
+            tang = np.array([-away[1], away[0]])
+            n = int(r.get("n", 4))
+            for k in range(n):
+                off = (k - (n - 1) / 2) * float(r.get("spread_m", 0.9))
+                q = c[:2] + away * (float(r.get("depth_m", 0.9)) + 0.3 * (k % 2)) + tang * off
+                more.append([q[0], q[1], c[2]])
+                if r.get("cone_each"):
+                    each.append(more[-1])
+        spots_ue = np.vstack([spots_ue, pv.wrcg_world_to_ue(np.array(more), shift)])
+        if each:
+            each_ue = pv.wrcg_world_to_ue(np.array(each), shift)
+        print(f"    [{slug}] crowd_add: {len(more)} spectators placed by hand")
     if cfg.get("tape_posts") and cfg.get("wrcg_tape_post_physics") is False:  # optional old wood-post replacement
         try:
             import tools.wrcg.prop_instances as pi
@@ -1096,7 +1246,10 @@ def _add_crowd(dst):
         try:
             import wr_penalty
             wr_penalty.prepare(WORK / "acr", os.environ["WRCG2ACR_ACR_PAKS"])
-            wr_penalty.add_cones(dst, WORK / "acr", wr_penalty.cone_points(spots_ue, route_ue), ig.make_ground_fn(shift),
+            cones = wr_penalty.cone_points(spots_ue, route_ue)
+            if each_ue is not None:
+                cones = np.vstack([cones, wr_penalty.cone_points(each_ue, route_ue, cell_m=0.5)])
+            wr_penalty.add_cones(dst, WORK / "acr", cones, ig.make_ground_fn(shift),
                                  log=lambda s: print(f"    [{cfg['name']}] {s.strip()}"))
         except Exception as e:
             print(f"    [{slug}] crowd penalty: not added ({type(e).__name__}: {e})")
@@ -1124,15 +1277,19 @@ def _patch_ground_cover_materials():
         n0 = len(dst.exports)
         name = str(k.get("name", a[0] if a else ""))
         species = re.sub(r"_\d+(_c\d+)?$", "", name[len(VEG_PREFIX):]) if name.startswith(VEG_PREFIX) else None
-        k = wr_perf.veg_kwargs(species, k)                  # ground cover: cull distance, no shadows (wr_perf.py)
-        visibility_tuning = species in {"olive", "oak", "shrub"} and (
-            _cfg(sc.cur().slug) or {}).get("tree_visibility_tuning")
-        if visibility_tuning and (k.get("cull_cm") or 0) > 0:
+        perf = _on(sc.cur().slug, "veg_perf")               # "veg_perf": false = the vegetation as the core builds it (no wr_perf cull / shadow / DFL changes)
+        if perf:
+            k = wr_perf.veg_kwargs(species, k)              # ground cover: cull distance, no shadows (wr_perf.py)
+        visibility_tuning = species in wr_perf.TREE_VISIBILITY_SPECIES | {"shrub"} and _on(sc.cur().slug, "tree_visibility_tuning")
+        if visibility_tuning and species in wr_perf.TREE_VISIBILITY_SPECIES:
+            k["cull_cm"] = 0.0
+        elif visibility_tuning and (k.get("cull_cm") or 0) > 0:
             k["cull_cm"] *= 1.25
         out = orig(dst, tmpl, *a, **k)
-        wr_perf.veg_after(dst, n0, species)
-        if visibility_tuning and species in {"olive", "oak"} and out.get("hism"):
-            wr_perf.extend_tree_visibility(dst, out["hism"])
+        if perf:
+            wr_perf.veg_after(dst, n0, species)
+        if visibility_tuning and species in wr_perf.TREE_VISIBILITY_SPECIES and out.get("hism"):
+            wr_perf.extend_tree_visibility(dst, out["hism"], species)
         mesh = str(k.get("mesh") or "").split(".")[0]
         mats = wr_groundcover.MATERIALS.get(species) or wr_groundcover.MESH_MATERIALS.get(mesh) or \
             _snow_tree_materials(k.get("mesh")) or _far_tree_materials(k.get("mesh")) or _stone_materials(k.get("mesh"))
@@ -1233,10 +1390,24 @@ def _patch_solid_props():
         try:
             import tools.acrmod.stagectx as sc
             slug = sc.cur().slug
-            if 2 in tuple(cats) and (_cfg(slug) or {}).get("graph_props_solid"):
+            if 2 in tuple(cats) and ((_cfg(slug) or {}).get("graph_props_solid") or (_cfg(slug) or {}).get("rocks") or (_cfg(slug) or {}).get("solid_by_name")):
                 out = list(out) + _graph_collision(slug, offset)
         except Exception as e:
             print(f"    graph props: no collision added ({type(e).__name__}: {e})")
+        try:
+            import tools.acrmod.stagectx as sc
+            import tools.acrmod.build_stage as bs
+            import tools.acrmod.ittiri_container as ic
+            import wr_fencerow
+            slug = sc.cur().slug
+            if 2 in tuple(cats) and wr_fencerow.options(_cfg(slug) or {}):
+                d = wr_fencerow.panel_collision(_cfg(slug), bs.route_wrcg(bs.load_cfg(slug)))
+                if d is not None:
+                    out = list(out) + list(ic._meshes_from(d, __import__("numpy").ones(len(d["triangles"]), bool), offset, "WrcgFencePanel",
+                                                           lambda t: "PM_WallBasic"))
+                    print(f"    fence panels: collision for {len(d['triangles']) // 12} static panels")
+        except Exception as e:
+            print(f"    fence panels: no collision added ({type(e).__name__}: {e})")
         try:
             import tools.acrmod.stagectx as sc
             if 2 in tuple(cats):
@@ -1422,7 +1593,7 @@ def _patch_graph_props():
                 if extra:
                     print(f"    scene: {len(extra)} parked vehicles added ({', '.join(p.psi_name for p in extra)})")
                     out = list(out) + extra
-                rocks = wr_scene.rock_props(out, _cfg(sc.cur().slug) or {})
+                rocks = wr_scene.rock_props(out, _cfg(sc.cur().slug) or {}, lambda: orig(level, ("dynamic", "decor"), **k)[0])
                 if rocks:
                     print(f"    rocks: {len(rocks)} {rocks[0].psi_name} added in a line")
                     out = list(out) + rocks
@@ -1942,9 +2113,18 @@ def _graph_collision(slug, offset):
             import wr_skinned
             first, _ = collect(cfg["wrcg_level"], ("static", "dynamic", "clutter", "spline", "decor"), route_xy=route[:, :2],
                                near_m=150.0, stage_mask=wr_skinned.stage_mask(cfg.get("stage_id")))
-            sel += wr_scene.vehicle_props(first[0] if first else None, cfg) + wr_scene.rock_props(first, cfg)
+            sel += wr_scene.vehicle_props(first[0] if first else None, cfg) + [p for p in wr_scene.rock_props(first, cfg) if getattr(p, "scene_solid", True)]
     except Exception as e:
         print(f"    scene vehicles: no collision ({type(e).__name__}: {e})")
+    solid = [w.upper() for w in cfg.get("solid_by_name") or []]
+    if solid:                                      # props of any source (not only the graph's) kept as solid obstacles, from their LOD0 mesh
+        try:
+            import wr_skinned
+            allp, _ = collect(cfg["wrcg_level"], ("static", "dynamic", "clutter", "spline", "decor"), route_xy=route[:, :2],
+                              near_m=150.0, stage_mask=wr_skinned.stage_mask(cfg.get("stage_id")))
+            sel += [p for p in allp if any(w in (p.psi_name or "").upper() for w in solid)]
+        except Exception as e:
+            print(f"    solid by name: not added ({type(e).__name__}: {e})")
     if not sel:
         return []
     pos, tri, piece, pms, cache = [], [], [], [], {}
@@ -2774,7 +2954,7 @@ def dry_road_cells(cells, water_z, pts):
 # both triggers behind it. Now the pre-start goes on backwards along WRCG's road (its full track spline, then the middle
 # of the road collision, wr_finish.runoff backward) to PRE_START_M where the road allows.
 PRE_START_M = 90.0
-PRE_KEEP_M = 30.0                              # stages with a WRCG start lane this long keep it (34-50 m: Savallà...)
+PRE_KEEP_M = 48.0                              # stages with a WRCG start lane this long keep it, shorter ones are lengthened to PRE_START_M (owner 2026-11-18: WRC's own start whenever it has at least 48 m; Greece 49, Spain 48.9; was 30)
 _PRE = {}
 
 
@@ -3400,7 +3580,9 @@ def _late_level(dst):
             f"x {lo[0]:.0f}..{hi[0]:.0f}, y {lo[1]:.0f}..{hi[1]:.0f} cm")
     try:
         import wr_perf
-        wr_perf.prop_draw_distances(dst, log=log)          # props: draw distance by size (wr_perf.py)
+        import tools.acrmod.stagectx as sc
+        if _on(sc.cur().slug, "prop_draw_distances"):      # "prop_draw_distances": false = props never culled by size (the first version)
+            wr_perf.prop_draw_distances(dst, log=log)      # props: draw distance by size (wr_perf.py)
     except Exception as e:
         log(f"draw distances: not set ({type(e).__name__}: {e})")
     if _SEATS:
@@ -3411,6 +3593,50 @@ def _late_level(dst):
                                 prefix=f"{cfg['name']}Seated")
         except Exception as e:
             log(f"seated people: not added ({type(e).__name__}: {e})")
+    if cfg.get("crowd_sit"):          # [{"at": [x, y, z], "n": 2, "spread_m": 1.2, "pose": "Sitting"|"SittingRock"}] WRCG metres: people sitting facing the road
+        import math
+        import tools.acrmod.start_marshal as sm
+        import wr_crowd
+        R = np.asarray(route, float)
+        by_pose = {}
+        for r in cfg["crowd_sit"]:
+            c = np.asarray(r["at"], float)
+            j = int(np.hypot(R[:, 0] - c[0], R[:, 1] - c[1]).argmin())
+            to_road = R[j, :2] - c[:2]
+            to_road = to_road / max(float(np.hypot(*to_road)), 1e-6)
+            tang = np.array([-to_road[1], to_road[0]])
+            n = int(r.get("n", 2))
+            for k in range(n):
+                q = c[:2] + tang * (k - (n - 1) / 2) * float(r.get("spread_m", 1.2))
+                ua, ub = pv.wrcg_world_to_ue(np.array([[q[0], q[1], c[2]], [q[0] + to_road[0], q[1] + to_road[1], c[2]]]), shift)
+                by_pose.setdefault(r.get("pose", "Sitting"), []).append(
+                    (float(ua[0]), float(ua[1]), float(ua[2]), math.degrees(math.atan2(ub[1] - ua[1], ub[0] - ua[0]))))
+        for pose, seats in by_pose.items():
+            try:
+                wr_crowd.add_seated(dst, sm.MARSHAL_CELL_SRC, seats, ground, log=log, prefix=f"{cfg['name']}{pose}", pose=pose)
+            except Exception as e:
+                log(f"crowd_sit {pose}: not added ({type(e).__name__}: {e})")
+    if cfg.get("escape_reaction"):      # [{"at": [x, y, z], "variant": "HandFree_Right_01", "trigger_m": 50, "chance": 1.0}] WRCG m: ACR's crowd that runs away (wr_escape.py)
+        try:
+            import math
+            import wr_escape
+            import wr_scene
+            R = np.asarray(route, float)
+            s = np.r_[0.0, np.cumsum(np.hypot(*np.diff(R[:, :2], axis=0).T))]
+            items = []
+            for r in cfg["escape_reaction"]:
+                c = np.asarray(r["at"], float)
+                j = int(np.hypot(R[:, 0] - c[0], R[:, 1] - c[1]).argmin())
+                _, _, nrm = wr_scene.frame(R, s[j])
+                side = "left" if float(np.dot(c[:2] - R[j, :2], nrm)) > 0 else "right"
+                jt = int(np.abs(s - (s[j] - float(r.get("trigger_m", 50.0)))).argmin())
+                (px, py, pz), (tx, ty, tz) = pv.wrcg_world_to_ue(np.array([c, R[jt]]), shift)
+                items.append((float(px), float(py), math.degrees(math.atan2(ty - py, tx - px)), (float(tx), float(ty), float(tz)),
+                              r.get("variant") or wr_escape.SIDE_DEFAULT[side], float(r.get("chance", 1.0))))
+            wr_escape.prepare(WORK / "acr", os.environ["WRCG2ACR_ACR_PAKS"])
+            wr_escape.add(dst, WORK / "acr", items, ground, log=log)
+        except Exception as e:
+            log(f"escape reaction: not added ({type(e).__name__}: {e})")
     if cfg.get("finish_marshal"):
         import wr_finish
         x_ue = wr_finish.finish_layout(dst, slug, cfg, WORK / "wrcg" / slug, shift, log=log)

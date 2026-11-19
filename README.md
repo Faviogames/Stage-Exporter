@@ -1,6 +1,6 @@
 # WRC to ACR Stage Exporter
 
-**Stage Exporter 1.5** es un complemento para Windows que amplía Sando Rally Stage Export Tool 0.3.7. Permite exportar tramos de WRC Generations a Assetto Corsa Rally, seleccionar qué tramos instala el pack y reutilizar los que ya están construidos.
+**Stage Exporter 1.6** es un complemento para Windows que amplía Sando Rally Stage Export Tool 0.3.7. Permite exportar tramos de WRC Generations a Assetto Corsa Rally, seleccionar qué tramos instala el pack y reutilizar los que ya están construidos.
 
 ## Requisitos
 
@@ -19,3 +19,9 @@ En la ventana **Stage Exporter**, elige un tramo y pulsa **Exportar tramo**. Usa
 Este repositorio contiene el código y la configuración del complemento. El núcleo de Sando y los recursos de los juegos se usan desde las instalaciones locales. La compatibilidad de los tramos depende del inventario de esta versión.
 
 Consulta [README_INSTALLER.txt](README_INSTALLER.txt) para más detalles.
+
+## Actualizaciones
+
+Desde la versión 1.6, la aplicación comprueba la última release de GitHub en cada inicio. Si hay una versión estable más reciente, pregunta si deseas instalarla y reiniciar. La descarga se verifica mediante SHA-256 de GitHub; si no hay conexión, puedes seguir usando el programa. Se conservan las configuraciones existentes, imágenes, descripciones, cachés y tramos; se incorporan los archivos de configuración que falten.
+
+Los usuarios de 1.5 o anteriores deben instalar 1.6 manualmente una vez. Los cambios visuales en mapas requieren reconstruir el tramo; actualizar la aplicación o el pack no reconstruye las cachés antiguas.

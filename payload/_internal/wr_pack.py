@@ -92,6 +92,31 @@ def free_cache(slugs, log=print):
     save([s for s in stages() if s not in slugs])
 
 
+def _size(path):
+    path = Path(path)
+    if path.is_file():
+        return path.stat().st_size
+    return sum(f.stat().st_size for f in path.rglob("*") if f.is_file()) if path.is_dir() else 0
+
+
+def deep_targets():
+    """[(label, path, bytes)] the aggressive clean deletes: everything the build makes again by itself. Kept: the stage caches that
+    make up the pack, ACR's extracted stock assets (work/acr/legacy_cache), the game files (work/wrcg_fs) and the helper data.
+    A stage's WRCG export (work/wrcg/<slug>) goes only with a .stage copy next to the tool, which brings it back on import."""
+    acr = ROOT / "work" / "acr"
+    out = [("terrain tiles", acr / "cache" / "terrain-tile"), ("textures", acr / "cache" / "texture"),
+           ("temporary textures", acr / "tex" / "rt")]
+    out += [("bake leftovers", f) for f in (acr / "rt").glob("bake_overlay_*.pkl")]
+    out += [(f"WRCG export {s}", ROOT / "work" / "wrcg" / s) for s in stages() if (ROOT / f"{s}.stage").exists()]
+    return [(a, b, _size(b)) for a, b in out if Path(b).exists() and _size(b)]
+
+
+def free_deep(log=print):
+    for label, path, n in deep_targets():
+        shutil.rmtree(path, ignore_errors=True) if Path(path).is_dir() else Path(path).unlink(missing_ok=True)
+        log(f"{label}: deleted ({n / 2 ** 30:.2f} GB)")
+
+
 def last_built(slug):
     k = keys().get(slug)
     return k.get("time") if k else None

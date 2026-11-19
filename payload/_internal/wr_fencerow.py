@@ -2,8 +2,8 @@
 WALL_BAMBOO_01 replaced by ACR's metal chain-link fence, hedges behind it, plastic barriers in front, and lights).
 
 Stage build "fence_rows": [{"points": [[x, y], ...] (WRCG metres, along the old wall), "fence": ["SM_ChainlinkFenceA6", ...],
-"hedge": true, "barriers": true, "continuous": false, "barrier_every_m": 12, "barrier_run": 3, "front_m": 1.3, "back_m": 1.5, "lights": true,
-"light_cd": 5000, "light_radius_cm": 2500, "light_height_m": 8, "light_every_m": 12, "light_toward_m": 4}].
+"hedge": true, "fence_static": false, "barriers": true, "continuous": false, "barrier_every_m": 12, "barrier_run": 3, "front_m": 1.3, "back_m": 1.5, "lights": true,
+"light_cd": 5000, "max_from_route_m": 12, "fence_back_m": 0, "light_radius_cm": 2500, "light_height_m": 8, "light_every_m": 12, "light_toward_m": 4}].
 Meshes are cloned from ACR's Monte Carlo cell of wr_tapeposts (it holds all of them): fence panels are BC_PhysicsActor_C
 (2.37 m wide, pivot at one end, so each panel starts where the previous ends), hedges and barriers StaticMeshActor.
 "Behind" is the side away from the route. The old wall is dropped with a "props_at" rule (wr_fixes._props_at).
@@ -21,6 +21,7 @@ PANEL_M = {"SM_ChainlinkFenceA6": 2.37, "SM_ChainlinkFenceA9": 2.37}
 HEDGE, BARRIER, BARRIER_M, HEDGE_M = "SM_Hedge02", "SM_PlasticBarrierAFix", 1.52, 6.79
 PACKAGES = {HEDGE: "/Game/Foliage/Trees/Hedge/", BARRIER: "/Game/Props/RallyProps/PlasticBarrierA/"}   # StaticMeshActors: mesh swapped on a template
 CLASSES = ("BC_PhysicsActor_C", "StaticMeshActor")
+CHAINLINK = {m: f"/Game/Props/Walls/ChainlinkFenceA/{m}" for m in PANEL_M}      # row "fence_static": true = these as static meshes
 FENCE_KG = 20000.0                 # chain-link panels: a car does not move them
 
 
@@ -73,7 +74,7 @@ def layout(row, route_xy):
         t = 0.0
         while names and t < seg - 0.3:
             mesh = names[k % len(names)]
-            p = a + u * t
+            p = a + u * t + n * float(row.get("fence_back_m", 0.0))          # panels set back, room for the barriers in front
             out["fence"].append((mesh, p[0], p[1], yaw))
             if row.get("hedge", True) and k % 3 == 0:
                 h = p + u * (PANEL_M[mesh] / 2) + n * float(row.get("back_m", 1.5))
@@ -103,6 +104,33 @@ def layout(row, route_xy):
     return out
 
 
+def panel_collision(cfg, route):
+    """Collision meshes (as wr_fixes._graph_collision) of the "fence_static" panels: a static mesh's own box is not honoured by the
+    car (owner 2026-11-17: "traspaso su cuerpo"), the stage's collision export is. One thin 1.5 m high box per panel, WRCG frame."""
+    R = np.asarray(route, float)
+    pos, tri, piece = [], [], []
+    for row in options(cfg) or []:
+        if not row.get("fence_static"):
+            continue
+        for mesh, x, y, yaw in layout(row, R[:, :2])["fence"]:
+            if mesh not in CHAINLINK:
+                continue
+            u = np.array([np.cos(np.radians(yaw)), np.sin(np.radians(yaw))])
+            nrm = np.array([-u[1], u[0]]) * 0.08
+            z0 = float(R[int(np.hypot(R[:, 0] - x, R[:, 1] - y).argmin()), 2]) - 0.6      # the ground beside the road is not the route's height
+            a, b = np.array([x, y]), np.array([x, y]) + u * PANEL_M[mesh]
+            v = [(*(p + s * nrm), z) for z in (z0, z0 + 2.2) for p, s in ((a, -1), (b, -1), (b, 1), (a, 1))]
+            base = sum(len(q) for q in pos)
+            pos.append(np.array(v, np.float32))
+            tri.append(np.array([(0, 2, 1), (0, 3, 2), (4, 5, 6), (4, 6, 7), (0, 1, 5), (0, 5, 4), (1, 2, 6), (1, 6, 5),
+                                 (2, 3, 7), (2, 7, 6), (3, 0, 4), (3, 4, 7)], np.uint32) + base)
+            piece.append(np.full(12, len(piece), np.uint16))
+    if not pos:
+        return None
+    return {"positions": np.concatenate(pos), "triangles": np.concatenate(tri), "tri_piece": np.concatenate(piece),
+            "tri_slot_sub": np.zeros(sum(len(t) for t in tri), np.uint16)}
+
+
 def add(dst, root, cfg, route_xy, to_ue, shift, ground, log):
     import wr_lights
     import wr_roadside as roadside
@@ -128,17 +156,29 @@ def add(dst, root, cfg, route_xy, to_ue, shift, ground, log):
         return bool(clear(np.array([x, y]))) and (kind != "barrier" or float(np.hypot(R[:, 0] - x, R[:, 1] - y).min()) >= 3.0)
     for row in rows:
         lay = layout(row, route_xy)
-        statics, barrier_places = [], []
+        statics, solid_statics, barrier_places = [], [], []
         for kind in ("fence", "hedge", "barrier"):
             for mesh, x, y, yaw in lay[kind]:
-                if kind != "hedge" and not off_road(x, y, kind):
-                    skipped += 1                     # in the carriageway (owner 2026-11-16: barriers in the middle of the stretch)
+                if kind == "barrier" and row.get("max_from_route_m") and float(np.hypot(R[:, 0] - x, R[:, 1] - y).min()) > float(row["max_from_route_m"]):
+                    skipped += 1                     # a run of the polyline that wanders far from the road (owner 2026-11-17: "no vienen al caso")
+                    continue
+                if kind == "barrier" and not off_road(x, y, "net"):      # a barrier is never put ON the road mesh
+                    skipped += 1                     # only the scattered barriers in front of the fence (not the continuous ones along the net, nor the panels: owner 2026-11-16)
                     continue
                 if mesh not in srcs:
                     srcs[mesh] = _find_actor(cell, mesh, "BC_PhysicsActor_C")
                 if mesh == BARRIER:                      # ACR's physical plastic barrier (wr_acrnets), white / red, heavy
                     h = np.array([np.cos(np.radians(yaw)), np.sin(np.radians(yaw))])
                     barrier_places.append((np.array([x + h[0] * BARRIER_M / 2, y + h[1] * BARRIER_M / 2, 0.0]), h))
+                    continue
+                if kind == "fence" and row.get("fence_static") and mesh in CHAINLINK:       # panels as plain static meshes: no ACR break / vanish logic
+                    ue = to_ue(np.array([[x, y, 0.0], [x + 1.0, y, 0.0], [x, y + 1.0, 0.0]]))
+                    J = np.array([ue[1, :2] - ue[0, :2], ue[2, :2] - ue[0, :2]]).T
+                    ya = np.degrees(np.arctan2(*(to_ue(np.array([[x, y, 0.0], [x + np.cos(np.radians(yaw)), y + np.sin(np.radians(yaw)), 0.0]]))[1, :2] -
+                                               to_ue(np.array([[x, y, 0.0]]))[0, :2])[::-1]))
+                    d = np.linalg.solve(J, [np.cos(np.radians(ya - 90.0)), np.sin(np.radians(ya - 90.0))])      # WRCG step that is UE yaw-90
+                    solid_statics.append((f"WrcgFenceStatic_{n}", CHAINLINK[mesh], np.array([x, y, 0.0]), np.array([x + d[0], y + d[1], 0.0]), (1.0, 1.0, 1.0)))
+                    n += 1
                     continue
                 if mesh in PACKAGES:
                     statics.append((f"WrcgFenceRow_{kind}_{n}", PACKAGES[mesh] + mesh, np.array([x, y, 0.0]),
@@ -168,12 +208,15 @@ def add(dst, root, cfg, route_xy, to_ue, shift, ground, log):
                 for d in mapping.values():
                     dst._add_export_names(dst.exp(d))
                 n += 1
+        log(f"fence rows: row {rows.index(row)}: {len(lay['fence'])} panels, {len(barrier_places)} barriers kept")
         if barrier_places:
             import wr_acrnets
             wr_acrnets.add_barriers(dst, tp_source(root), None, float(row.get("barrier_kg", wr_acrnets.BARRIER_KG)), to_ue, ground, log,
                                     places=barrier_places, prefix=f"WrcgRowBarrier{id(row) % 9973}")
         if statics:
             roadside._add_roadside_props(dst, statics, to_ue(np.asarray(route_xy, float)), to_ue, ground, 7.0)
+        if solid_statics:
+            roadside._add_roadside_props(dst, solid_statics, to_ue(np.asarray(route_xy, float)), to_ue, ground, 7.0, solid=True)
         for x, y in lay["lights"]:
             lights.append((x, y, float(row.get("light_height_m", 8.0)), float(row.get("light_radius_cm", 2500.0)),
                            float(row.get("light_cd", 5000.0))))

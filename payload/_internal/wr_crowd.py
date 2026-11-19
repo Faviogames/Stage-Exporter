@@ -168,8 +168,9 @@ def add_crowd(dst, cell_json, spots_ue, route_ue, ground, log=print, prefix="Wrc
 # DA_CrowdChairAddMesh = SM_SeatA, spawn share 0) and DA_CrowdAnimations' "Chair" set (Sitting_Chair idles); each WRCG
 # chair becomes one such element facing the way the chair faces, and the WRCG chair itself is left out (wr_fixes) so the
 # two seats do not overlap.
-def add_seated(dst, cell_json, seats_ue, ground, log=print, prefix="WrcgSeated"):
-    """seats_ue: [(x, y, z, facing yaw in degrees)] in UE cm; one spawner per CLUSTER_M cell. Returns people placed."""
+def add_seated(dst, cell_json, seats_ue, ground, log=print, prefix="WrcgSeated", pose=None):
+    """seats_ue: [(x, y, z, facing yaw in degrees)] in UE cm; one spawner per CLUSTER_M cell. Returns people placed.
+    pose "Sitting" / "SittingRock": no chair, the person sits on the ground / a rock as the stock spectators do (see _set_pose)."""
     cell = type(dst)(json.loads(Path(cell_json).read_text(encoding="utf-8")))
     spawners = [i for i in range(1, len(cell.exports) + 1)
                 if cell.class_name(i) == "BC_CrowdSystemSpawnerBakedActor_C"]
@@ -184,10 +185,10 @@ def add_seated(dst, cell_json, seats_ue, ground, log=print, prefix="WrcgSeated")
                     add_tmpl = add_tmpl or (copy.deepcopy(p["Value"][0]) if p["Value"] else None)
                     p["Value"] = []
             pool.append(el)
-    if add_tmpl is None:
+    if add_tmpl is None and pose is None:
         log("    seated people: no add-mesh entry to copy, skipped")
         return 0
-    chair = _flare_item(add_tmpl, "Chair")
+    chair = _flare_item(add_tmpl, "Chair") if pose is None else None
     seats = []
     for x, y, z, yaw in seats_ue:
         g = ground(float(x), float(y), float(z))
@@ -217,7 +218,11 @@ def add_seated(dst, cell_json, seats_ue, ground, log=print, prefix="WrcgSeated")
             tr = _field(el, "Transform")
             _set_xyz(_field(tr, "Translation"), x - cx, y - cy, z - cz)
             _set_quat_yaw(_field(tr, "Rotation"), yaw - 90.0)       # the characters face their local +Y
-            _field(el, "AdditionalMeshes")["Value"] = [copy.deepcopy(chair)]
+            if pose is None:
+                _field(el, "AdditionalMeshes")["Value"] = [copy.deepcopy(chair)]
+            else:
+                _field(el, "AdditionalMeshes")["Value"] = []
+                _set_pose(dst, el, pose, _slope_deg(ground, x, y, z))
             els.append(el)
         _field(_prop(dst.exp(new), "BakedSpawnData"), "Elements")["Value"] = els
         dst._add_export_names(dst.exp(new))
@@ -228,8 +233,33 @@ def add_seated(dst, cell_json, seats_ue, ground, log=print, prefix="WrcgSeated")
                 if p["Name"] == "BoundsRadius":
                     p["Value"] = float(radius)
         n += len(group)
-    log(f"    seated people: {n} at the start and finish tables (WRCG's chairs, ACR's crowd seat), {len(cells)} spawners")
+    log(f"    seated people: {n} " + (f"{pose} on the ground" if pose else "at the start and finish tables (WRCG's chairs, ACR's crowd seat)") + f", {len(cells)} spawners")
     return n
+
+
+def _slope_deg(ground, x, y, z, d=100.0):
+    """Ground slope (degrees) at a point, from the heights 1 m away."""
+    h = [ground(x + dx, y + dy, z) for dx, dy in ((d, 0.0), (-d, 0.0), (0.0, d), (0.0, -d))]
+    if any(v is None or not math.isfinite(v) for v in h):
+        return 0.0
+    return math.degrees(math.atan(math.hypot(h[0] - h[1], h[2] - h[3]) / (2.0 * d)))
+
+
+def _set_pose(dst, el, pose, slope):
+    """The attribute that makes ACR sit a spectator (stock cell DGC4CM72...: SittingRock people have it in their AttributesMap with
+    value None, and the ground slope in SlopeDegrees; DA_CrowdSittingReqs asks for "Sitting" + the classified slope)."""
+    pairs = _field(_field(el, "Attributes"), "AttributesMap")["Value"]
+    pair = copy.deepcopy(pairs[0])
+    pair[0]["Value"], pair[1]["Value"] = pose, "None"
+    dst.add_name(pose)
+    pairs.append(pair)
+    sd = next(f for f in el["Value"] if f["Name"] == "SlopeDegrees")
+    sd["InnerType"], sd["IsZero"] = "FloatProperty", False
+    # DA_CrowdSittingReqs = Sitting and NOT SlopeClassified: a steep slope (the Greece hill is ~40 deg) would classify and drop the
+    # flat sitting set, leaving the person with no animation (owner 2026-11-18: not seen); stock SittingRock people are 0.2-6.6 deg.
+    sd["Value"] = {"$type": "UAssetAPI.PropertyTypes.Objects.FloatPropertyData, UAssetAPI", "Name": "0", "ArrayIndex": 0,
+                   "PropertyGuid": None, "IsZero": False, "PropertyTagFlags": "None", "PropertyTypeName": None,
+                   "PropertyTagExtensions": "NoExtension", "Value": float(min(slope, 6.0))}
 
 
 def _flare_item(tmpl, rep="Smoke"):

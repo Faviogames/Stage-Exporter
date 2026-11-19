@@ -61,10 +61,21 @@ def veg_after(dst, n0, species):
             _set_bool(dst, dst.exp(i), "bAffectDistanceFieldLighting", False)
 
 
-def extend_tree_visibility(dst, hism):
+TREE_VISIBILITY_SPECIES = {"olive", "oak", "pine", "maple", "cypress"}      # replayed roadside trees seen in the Greece / Spain levels
+
+
+LOD_SCALE = {"olive": 4.0, "oak": 4.0}          # ACR has no other meshes for these: keep their detailed LODs farther (owner 2026-11-19, Seyabei blur)
+
+
+def extend_tree_visibility(dst, hism, species=None):
+    """Keep the replayed roadside trees visible farther out; leave the added forest unchanged."""
     component = dst.exp(hism)
     _set_bool(dst, component, "bNeverDistanceCull", True)
-    _set_float(dst, component, "InstanceLODDistanceScale", 1.25)
+    _set_float(dst, component, "InstanceLODDistanceScale", LOD_SCALE.get(species, 1.5))
+    for name in ("InstanceStartCullDistance", "InstanceEndCullDistance"):
+        _put(dst, component, name, "IntPropertyData", 0)
+    for name in ("MinDrawDistance", "LDMaxDrawDistance", "CachedMaxDrawDistance"):
+        _set_float(dst, component, name, 0.0)
     dst._add_export_names(component)
 
 

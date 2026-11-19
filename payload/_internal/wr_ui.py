@@ -47,6 +47,12 @@ EN.update({
     '✔ tiene copia .stage': '✔ has a .stage copy', '⚠ SIN copia .stage': '⚠ NO .stage copy',
     'Se liberarían {gb:.1f} GB': '{gb:.1f} GB would be freed',
     'Sin copia .stage: {l}.\n\nSi los borras hay que exportarlos de nuevo. ¿Continuar?': 'No .stage copy: {l}.\n\nIf you delete them you must export them again. Continue?',
+    'Limpieza agresiva: {gb:.1f} GB más (teselas de terreno, texturas temporales y la exportación WRCG de los tramos con .stage). Solo conviene si tienes los .stage: la próxima exportación tardará más porque se rehace todo eso.':
+        'Aggressive clean: {gb:.1f} GB more (terrain tiles, temporary textures and the WRCG export of stages with a .stage). Only worth it if you have the .stage files: the next export takes longer because all of that is made again.',
+    '¿Exportar {n} tramos, uno detrás de otro?\n\n{l}\n\nCada uno tarda unos 25 min. Los otros {m} tramos del pack se reutilizan. Al terminar se instala el pack una sola vez.':
+        'Export {n} stages, one after another?\n\n{l}\n\nEach takes about 25 min. The other {m} stages of the pack are reused. The pack is installed once at the end.',
+    'Vaciar cola': 'Clear queue', 'Añadir a la cola': 'Add to queue', 'Quitar de la cola': 'Remove from queue',
+    '⏳ en cola #{n}': '⏳ queued #{n}', 'COLA DE EXPORTACIÓN ({n})': 'EXPORT QUEUE ({n})', 'Exportar cola ({n})': 'Export queue ({n})',
     'Borrar caché': 'Delete cache',
 })
 
@@ -67,7 +73,8 @@ COUNTRY_ES = {"Spain": "Espa\u00f1a", "Greece": "Grecia", "Italy": "Italia", "Fr
               "Argentina": "Argentina", "New Zealand": "Nueva Zelanda", "Belgium": "B\u00e9lgica",
               "Germany": "Alemania", "Turkey": "Turqu\u00eda", "Monaco": "M\u00f3naco", "Wales": "Gales",
               "United Kingdom": "Reino Unido"}
-BETA = {"KE_KENYA", "BE_YPRES"}                      # levels still being tried: their stages show "(BETA)" in the list
+BETA = {"BE_YPRES"}                      # levels still being tried: their stages show "(BETA)" in the list
+BETA_SLUGS = {"ke_es1", "ke_es1r"}       # single stages still being tried (Kenya's Ntulele); Seyabei and Ngema are out of beta
 SURFACE_ES = {"Tarmac": "asfalto", "Snow": "nieve", "Gravel": "tierra"}
 REGION_ES = {"Sardinia": "Cerdeña", "Corsica": "Córcega", "Sanremo": "Sanremo"}
 
@@ -87,8 +94,9 @@ def _inventory():
             continue
         L = (s.get("length_m") or {}).get("sections_cfg") or 0
         country = wr_stages.country_name(s.get("country_en"))
-        rows.append({"id": s["id"], "slug": ss.slug(s["id"]),
-                     "name": (s.get("stage_name_en") or s["id"]) + (" (BETA)" if s["location_folder"] in BETA else ""),
+        slug = ss.slug(s["id"])
+        rows.append({"id": s["id"], "slug": slug,
+                     "name": (s.get("stage_name_en") or s["id"]) + (" (BETA)" if s["location_folder"] in BETA or slug in BETA_SLUGS else ""),
                      "ok": wr_stages.supported(s), "km": L / 1000.0,
                      "surface": SURFACE_ES.get(wr_stages.surface(s), "tierra"),
                      "loc": s["location_folder"], "rally": s.get("rally_name_en") or s["location_folder"],
@@ -331,8 +339,17 @@ class App:
         self.d_info.pack(anchor="w", padx=16)
         btns = tk.Frame(right, bg=PANEL)
         btns.pack(side="bottom", fill="x", padx=14, pady=14)
+        self.queue = []                               # slugs queued for export, in order; kept when the country changes
+        self.q_box = tk.Frame(btns, bg=PANEL2, highlightthickness=1, highlightbackground=WARN)
+        self.q_text = tk.Label(self.q_box, bg=PANEL2, fg=WARN, justify="left", anchor="w", wraplength=270, font=(self.f_ui, 10))
+        self.q_text.pack(fill="x", padx=10, pady=(8, 2))
+        q_clear = tk.Label(self.q_box, text=T("Vaciar cola"), bg=PANEL2, fg=MUTED, cursor="hand2", font=(self.f_ui, 9))
+        q_clear.pack(anchor="e", padx=10, pady=(0, 6))
+        q_clear.bind("<Button-1>", lambda e: self.clear_queue())
         self.b_export = ttk.Button(btns, text=T("Exportar tramo"), style="Accent.TButton", command=self.export)
         self.b_export.pack(fill="x")
+        self.b_queue = ttk.Button(btns, text=T("Añadir a la cola"), style="Ghost.TButton", command=self.toggle_queue)
+        self.b_queue.pack(fill="x", pady=(8, 0))
         self.b_info = ttk.Button(btns, text=T("Nombre e imágenes"), style="Ghost.TButton", command=self.stage_info)
         self.b_info.pack(fill="x", pady=(8, 0))
         self.b_stagefile = ttk.Button(btns, text=T("Guardar como .stage"), style="Ghost.TButton",
@@ -355,11 +372,12 @@ class App:
             self.st_tv.heading(c, text=t, anchor=a)
             self.st_tv.column(c, width=w, anchor=a, stretch=c == "#0")
         self.st_tv.tag_configure("pack", foreground=ACCENT)
+        self.st_tv.tag_configure("queued", foreground=WARN)
         self.st_tv.tag_configure("off", foreground=DIM)
         self.st_tv.pack(fill="both", expand=True, padx=6, pady=(0, 8))
         self.st_tv.bind("<<TreeviewSelect>>", lambda e: self.show_detail())
         self.st_tv.bind("<Button-1>", self.toggle_pack, add="+")
-        self.st_tv.bind("<Double-1>", lambda e: None if self.st_tv.identify_column(e.x) == "#3" else self.export())
+        self.st_tv.bind("<Double-1>", lambda e: None if self.st_tv.identify_column(e.x) == "#3" else self.toggle_queue())
         # progress
         foot = tk.Frame(r, bg=PANEL, highlightthickness=1, highlightbackground=BORDER)
         foot.pack(fill="x", padx=22, pady=(14, 18))
@@ -417,12 +435,13 @@ class App:
         for s in st:
             inp = s["slug"] in pack
             built = bool(self.pack.built(s["slug"]))
-            state = T("☑ en el pack") if inp else (T("☐ disponible") if built else (
+            qn = self.queue.index(s["slug"]) + 1 if s["slug"] in self.queue else 0
+            state = T("⏳ en cola #{n}").format(n=qn) if qn else T("☑ en el pack") if inp else (T("☐ disponible") if built else (
                 T("no soportado") if not s["ok"] else T("sin exportar")))
             last = _short(self.pack.last_built(s["slug"])) if built else ""
             self.st_tv.insert("", "end", iid=s["id"], text="   " + s["name"],
                               values=(f"{s['km']:.1f}", T(s["surface"]), state, last or ""),
-                              tags=("pack",) if inp else (("off",) if not s["ok"] else ()))
+                              tags=("queued",) if qn else ("pack",) if inp else (("off",) if not s["ok"] else ()))
         first = keep if keep and self.st_tv.exists(keep) else (st[0]["id"] if st else None)
         if first:
             self.st_tv.selection_set(first)
@@ -431,8 +450,42 @@ class App:
     def selected(self):
         return [self.by_id[i] for i in self.st_tv.selection()]
 
+    def _queue_view(self):
+        """The queue box, the export button's text and the add / remove button follow the queue and the selected stage."""
+        by_slug = {s["slug"]: s for s in self.stages}
+        n = len(self.queue)
+        if n:
+            self.q_text.config(text=T("COLA DE EXPORTACIÓN ({n})").format(n=n) + chr(10) +
+                               chr(10).join(f"{i}. {by_slug[q]['name']}" for i, q in enumerate(self.queue, 1)))
+            self.q_box.pack(fill="x", pady=(0, 8), before=self.b_export)
+        else:
+            self.q_box.pack_forget()
+        self.b_export.config(text=T("Exportar cola ({n})").format(n=n) if n else T("Exportar tramo"))
+        sel = self.selected()
+        self.b_queue.config(text=T("Quitar de la cola") if sel and sel[0]["slug"] in self.queue else T("Añadir a la cola"))
+
+    def toggle_queue(self):
+        sel = self.selected()
+        if not sel or self.busy:
+            return
+        s = sel[0]
+        if s["slug"] in self.queue:
+            self.queue.remove(s["slug"])
+        elif not s["ok"]:
+            messagebox.showwarning(APP, T("{name} no se puede exportar todavía.").format(name=s["name"]))
+            return
+        else:
+            self.queue.append(s["slug"])
+        self.show_stages(s["id"])
+
+    def clear_queue(self):
+        self.queue.clear()
+        sel = self.selected()
+        self.show_stages(sel[0]["id"] if sel else None)
+
     def show_detail(self):
         import wr_images
+        self._queue_view()
         sel = self.selected()
         for w in self.badges.winfo_children():
             w.destroy()
@@ -483,17 +536,26 @@ class App:
 
     # --- actions ------------------------------------------------------------------------------------------------------
     def export(self):
-        sel = self.selected()
+        by_slug = {s["slug"]: s for s in self.stages}
+        sel = [by_slug[q] for q in self.queue] or self.selected()
         if not sel or self.busy:
             return
-        s = sel[0]
-        if not s["ok"]:
-            messagebox.showwarning(APP, T("{name} no se puede exportar todavía.\n\nEn WRC Generations este tramo no tiene piezas de carretera (la calle es parte de un objeto de terreno de la ciudad).").format(name=s["name"]))
+        bad = [s for s in sel if not s["ok"]]
+        if bad:
+            messagebox.showwarning(APP, T("{name} no se puede exportar todavía.\n\nEn WRC Generations este tramo no tiene piezas de carretera (la calle es parte de un objeto de terreno de la ciudad).").format(name=bad[0]["name"]))
             return
-        others = [p for p in self.pack.stages() if p != s["slug"]]
-        if not messagebox.askyesno(APP, T("¿Exportar {name}?\n\nLos otros {n} tramos del pack se reutilizan tal como están. Al terminar se instala el pack en Assetto Corsa Rally.").format(name=s["name"], n=len(others))):
+        slugs = [s["slug"] for s in sel]
+        others = [p for p in self.pack.stages() if p not in slugs]
+        if len(sel) == 1:
+            ask = T("¿Exportar {name}?\n\nLos otros {n} tramos del pack se reutilizan tal como están. Al terminar se instala el pack en Assetto Corsa Rally.").format(name=sel[0]["name"], n=len(others))
+        else:
+            ask = T("¿Exportar {n} tramos, uno detrás de otro?\n\n{l}\n\nCada uno tarda unos 25 min. Los otros {m} tramos del pack se reutilizan. Al terminar se instala el pack una sola vez.").format(
+                n=len(sel), l="\n".join(s["name"] for s in sel), m=len(others))
+        if not messagebox.askyesno(APP, ask):
             return
-        self.start(lambda: self._export([s]), again=[s["slug"]], pack=self.pack.stages() + ([] if s["slug"] in self.pack.stages() else [s["slug"]]))
+        self.queue.clear()
+        self._queue_view()
+        self.start(lambda: self._export(sel), again=slugs, pack=self.pack.stages() + [x for x in slugs if x not in self.pack.stages()])
 
     def _export(self, sel):
         import wr
@@ -552,7 +614,8 @@ class App:
             n = self.pack.cache_bytes(s["slug"])
             if n:
                 rows.append((s, n, (wr.ROOT / f"{s['slug']}.stage").exists()))
-        if not rows:
+        deep = self.pack.deep_targets()
+        if not rows and not deep:
             messagebox.showinfo(APP, T("No hay nada que liberar: ningún tramo construido en la caché."))
             return
         dlg = tk.Toplevel(self.root, bg=PANEL)
@@ -573,22 +636,31 @@ class App:
                            text=f"{s['name']}   {n / 2 ** 30:.1f} GB   " +
                                 (T("✔ tiene copia .stage") if has else T("⚠ SIN copia .stage"))
                            ).pack(fill="x", padx=18)
+        deep_v = tk.BooleanVar(value=False)
+        deep_n = sum(n for _, _, n in deep)
+        if deep:
+            tk.Checkbutton(dlg, variable=deep_v, bg=PANEL, fg=WARN, selectcolor=BG, activebackground=PANEL, activeforeground=TEXT,
+                           font=(self.f_ui, 10), anchor="w", justify="left", wraplength=500, command=lambda: total(),
+                           text=T("Limpieza agresiva: {gb:.1f} GB más (teselas de terreno, texturas temporales y la exportación WRCG de los tramos con .stage). "
+                                  "Solo conviene si tienes los .stage: la próxima exportación tardará más porque se rehace todo eso.").format(gb=deep_n / 2 ** 30)
+                           ).pack(fill="x", padx=18, pady=(8, 0))
         lbl = tk.Label(dlg, bg=PANEL, fg=MUTED, font=(self.f_ui, 10))
         lbl.pack(anchor="w", padx=18, pady=(10, 4))
 
         def total():
-            lbl.config(text=T("Se liberarían {gb:.1f} GB").format(gb=sum(n for _, n, v in vars_ if v.get()) / 2 ** 30))
+            lbl.config(text=T("Se liberarían {gb:.1f} GB").format(gb=(sum(n for _, n, v in vars_ if v.get()) + (deep_n if deep_v.get() else 0)) / 2 ** 30))
         total()
 
         def go():
             sel = [(sl, n) for sl, n, v in vars_ if v.get()]
-            if not sel:
+            if not sel and not deep_v.get():
                 return
             risky = [sl for sl, _ in sel if not (wr.ROOT / f"{sl}.stage").exists()]
             if risky and not messagebox.askyesno(APP, T("Sin copia .stage: {l}.\n\nSi los borras hay que exportarlos de nuevo. ¿Continuar?").format(l=", ".join(risky)), parent=dlg):
                 return
             dlg.destroy()
-            self._file_job(lambda: self.pack.free_cache([sl for sl, _ in sel], log=self.say),
+            self._file_job(lambda: (self.pack.free_cache([sl for sl, _ in sel], log=self.say) if sel else None,
+                                    self.pack.free_deep(log=self.say) if deep_v.get() else None),
                            after=lambda: (self.fill_locations(), self.show_stages()))
 
         bt = tk.Frame(dlg, bg=PANEL)
@@ -937,6 +1009,9 @@ def main():
     except Exception:
         pass
     app = App(root)
+    import wr_update
+    root.title(f"{APP} {wr_update.VERSION}")
+    wr_update.start(root, app, LANG)
 
     class _Out:                                     # print() of the hooks into the window's details too
         def __init__(self, stream):

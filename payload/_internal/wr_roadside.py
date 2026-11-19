@@ -561,7 +561,7 @@ def _add_red_tape(dst, root, poles, spans, to_ue, ground):
             particle["Value"][0]["Value"].update(X=float(x), Y=float(y), Z=float(z - min(80, length * 0.18) * u * (1 - u)))
 
 
-def _add_roadside_props(dst, props, route_ue, to_ue, ground, width):
+def _add_roadside_props(dst, props, route_ue, to_ue, ground, width, solid=False):
     from tools.acrmod import stage_dressing as sd, vegetation_visual as vv
     import wr_rvt
 
@@ -597,6 +597,15 @@ def _add_roadside_props(dst, props, route_ue, to_ue, ground, width):
         component["Data"] = [p for p in component["Data"] if p.get("Name") not in
                              {"RelativeScale3D", "OverrideMaterials", "CachedMaxDrawDistance"}]
         component["Data"].append(scale)
+        if solid:                                   # the template has no collision: the mesh's own collision blocks everything
+            bi = _prop(dst, c, "BodyInstance")
+            for v in bi["Value"]:
+                if v["Name"] == "CollisionEnabled":
+                    v["Value"] = "QueryAndPhysics"
+                elif v["Name"] == "CollisionProfileName":
+                    v["Value"] = "BlockAll"
+            for nm in ("QueryAndPhysics", "BlockAll"):
+                dst.add_name(nm)
         dst._add_export_names(component)
 
 
@@ -622,20 +631,35 @@ def _add_corner_posts(dst, root, posts, to_ue, ground):
 
 def _skip_cloth(items, cfg):
     """cfg "cloth_skip": [{"match": "NET_RED", "from_m": 2950, "to_m": 3150}]: cloth pieces whose material contains `match`
-    and whose nearest route metre is in the range are left out (collision included: net_solid reads the same items)."""
+    and whose nearest route metre is in the range are left out (collision included: net_solid reads the same items).
+    Optional "keep_nearest": 1.0 leaves out only the pieces that are farther than that from the nearest parallel line."""
     rules = (cfg or {}).get("cloth_skip") or []
     if not rules:
         return items
     import tools.acrmod.build_stage as bs
     route = np.asarray(bs.route_wrcg(bs.load_cfg(cfg["slug"])), float)[:, :2]
     s = np.r_[0.0, np.cumsum(np.hypot(*np.diff(route, axis=0).T))]
-    keep = []
+    info = []                                           # (nearest route metre, signed lateral m) of every piece
     for it in items:
-        mat, p = str(it.get("material")).upper(), it["pos"]
+        p = it["pos"]
         i = int(np.hypot(route[:, 0] - p[0], route[:, 1] - p[1]).argmin())
-        if any(r["match"].upper() in mat and r["from_m"] <= s[i] <= r["to_m"] for r in rules):
-            continue
-        keep.append(it)
+        t = route[min(i + 1, len(route) - 1)] - route[max(i - 1, 0)]
+        t = t / max(float(np.hypot(*t)), 1e-9)
+        info.append((s[i], float((np.asarray(p[:2], float) - route[i]) @ np.array([-t[1], t[0]]))))
+    keep = []
+    for it, (m, lat) in zip(items, info):
+        mat = str(it.get("material")).upper()
+        drop = False
+        for r in rules:
+            if r["match"].upper() not in mat or not r["from_m"] <= m <= r["to_m"]:
+                continue
+            if r.get("keep_nearest") is None:
+                drop = True
+            else:       # "keep_nearest": 1.0 = of several parallel lines (same side, +-3 m) only the one nearest to the road stays
+                near = min(abs(l) for (m2, l), it2 in zip(info, items) if abs(m2 - m) <= 3.0 and l * lat > 0 and r["match"].upper() in str(it2.get("material")).upper())
+                drop = drop or abs(lat) - near > float(r["keep_nearest"])
+        if not drop:
+            keep.append(it)
     return keep
 
 

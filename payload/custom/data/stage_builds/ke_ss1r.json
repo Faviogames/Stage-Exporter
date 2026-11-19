@@ -63,7 +63,8 @@
     "KE_KENYA/SS1R: Ngema reverse, Safari Rally Kenya, 7706 m, gravel; WRCG tag SS1R.",
     "2026-11-15 (owner: enable the other Kenya stages): Kenya settings of ke_ss2 copied (decals off, red road, terrain match, solid nets/fences/rocks, own spawners, crowd 20 s penalty, auto crowd, animals of tag SS1, support vehicles, stop control 100 m). Untested on this stage.",
     "2026-11-16: Seyabei's settled defaults copied to every Kenya stage (sky, tree_visibility_tuning, cloth_tint, drop_psi, water, decal_drop, decal_min_side_m, corner_post_min_deg, corner_post_gap_m, corner_post_fill_m, greece_gravel_dust, decals->True, pacenote_drop_tokens); originals in analisis/parches/stage_builds_antes_kenya_defaults/.",
-    "2026-11-16 (owner): drop_psi BOUTEILLE removed (only Seyabei needs it)."
+    "2026-11-16 (owner): drop_psi BOUTEILLE removed (only Seyabei needs it).",
+    "2026-11-19 (owner: reverse stages take every parameter of the forward one): copied from ke_ss1 the parameters in WRCG coordinates (tree_meshes mix, crowd_add, crowd_drop, props_at, fence_rows). NOT copied: the ones by route metre (fill_lights, rocks), they must be mirrored once the reverse route exists in work/wrcg/ke_ss1r."
   ],
   "export": {
     "vegetation": "replay",
@@ -135,5 +136,459 @@
   "greece_gravel_dust": true,
   "pacenote_drop_tokens": [
     "WATER"
+  ],
+  "tree_meshes": {
+    "oak": {
+      "mix": [
+        {
+          "mesh": "Fig/SM_Fig01",
+          "weight": 0.25,
+          "scale": [
+            0.7,
+            1.0
+          ]
+        },
+        {
+          "mesh": "Fig/SM_Fig02",
+          "weight": 0.25,
+          "scale": [
+            0.7,
+            1.0
+          ]
+        },
+        {
+          "mesh": "Smoketree/SM_Smoketree02",
+          "weight": 0.11666666666666665,
+          "scale": [
+            0.8,
+            1.1
+          ]
+        },
+        {
+          "mesh": "Smoketree/SM_Smoketree04",
+          "weight": 0.11666666666666665,
+          "scale": [
+            0.8,
+            1.1
+          ]
+        },
+        {
+          "mesh": "Smoketree/SM_Smoketree06",
+          "weight": 0.11666666666666665,
+          "scale": [
+            0.8,
+            1.1
+          ]
+        },
+        {
+          "mesh": "Baretree/SM_Baretree04",
+          "weight": 0.049999999999999996,
+          "scale": [
+            0.3,
+            0.5
+          ]
+        },
+        {
+          "mesh": "Baretree/SM_Baretree05",
+          "weight": 0.049999999999999996,
+          "scale": [
+            0.3,
+            0.5
+          ]
+        },
+        {
+          "mesh": "Baretree/SM_Baretree06",
+          "weight": 0.049999999999999996,
+          "scale": [
+            0.3,
+            0.5
+          ]
+        }
+      ]
+    },
+    "olive": {
+      "mix": [
+        {
+          "mesh": "Fig/SM_Fig01",
+          "weight": 0.25,
+          "scale": [
+            0.6,
+            0.9
+          ]
+        },
+        {
+          "mesh": "Fig/SM_Fig02",
+          "weight": 0.25,
+          "scale": [
+            0.6,
+            0.9
+          ]
+        },
+        {
+          "mesh": "Smoketree/SM_Smoketree02",
+          "weight": 0.11666666666666665,
+          "scale": [
+            0.8,
+            1.1
+          ]
+        },
+        {
+          "mesh": "Smoketree/SM_Smoketree04",
+          "weight": 0.11666666666666665,
+          "scale": [
+            0.8,
+            1.1
+          ]
+        },
+        {
+          "mesh": "Smoketree/SM_Smoketree06",
+          "weight": 0.11666666666666665,
+          "scale": [
+            0.8,
+            1.1
+          ]
+        },
+        {
+          "mesh": "Baretree/SM_Baretree04",
+          "weight": 0.049999999999999996,
+          "scale": [
+            0.3,
+            0.5
+          ]
+        },
+        {
+          "mesh": "Baretree/SM_Baretree05",
+          "weight": 0.049999999999999996,
+          "scale": [
+            0.3,
+            0.5
+          ]
+        },
+        {
+          "mesh": "Baretree/SM_Baretree06",
+          "weight": 0.049999999999999996,
+          "scale": [
+            0.3,
+            0.5
+          ]
+        }
+      ]
+    }
+  },
+  "crowd_add": [
+    {
+      "at": [
+        -1266.2,
+        361.3,
+        1874.0
+      ],
+      "n": 4,
+      "depth_m": 0.9,
+      "spread_m": 0.9
+    }
+  ],
+  "crowd_drop": [
+    {
+      "box": [
+        -1580.0,
+        1650.0,
+        -1280.0,
+        1780.0
+      ],
+      "zmin": 1869.9
+    }
+  ],
+  "props_at": [
+    {
+      "psi": "STALL_0[24]",
+      "at": [
+        -1405.2,
+        1743.6
+      ],
+      "radius": 3.0,
+      "action": "sink",
+      "m": 0.3
+    },
+    {
+      "psi": "MARKETHOUSES_CANDY",
+      "at": [
+        -1415.0,
+        1740.7
+      ],
+      "radius": 2.0,
+      "action": "sink",
+      "m": 0.4
+    },
+    {
+      "psi": "WALL_BAMBOO_01_MIDDLE0[123]",
+      "box": [
+        -1336.0,
+        792.0,
+        -1315.0,
+        832.0
+      ],
+      "action": "drop"
+    },
+    {
+      "psi": "WALL_BAMBOO_01_MIDDLE0[123]",
+      "box": [
+        -1520.0,
+        780.0,
+        -1240.0,
+        950.0
+      ],
+      "action": "drop"
+    },
+    {
+      "psi": "CHAIR|SUNUMBRELLA_0\\d",
+      "box": [
+        -1580.0,
+        1650.0,
+        -1280.0,
+        1780.0
+      ],
+      "zmin": 1869.9,
+      "action": "drop"
+    },
+    {
+      "psi": "BRICK_01_TARP_\\d+",
+      "at": [
+        -1399.7,
+        1748.9
+      ],
+      "radius": 15.0,
+      "action": "drop"
+    },
+    {
+      "psi": "BRICK_RUBBLE_\\d+",
+      "at": [
+        -1399.7,
+        1748.9
+      ],
+      "radius": 12.0,
+      "action": "drop"
+    },
+    {
+      "psi": "STICK_WOOD",
+      "box": [
+        -366.6,
+        1455.8,
+        -144.4,
+        1600.2
+      ],
+      "action": "drop"
+    }
+  ],
+  "fence_rows": [
+    {
+      "points": [
+        [
+          -1334.0,
+          794.0
+        ],
+        [
+          -1332.0,
+          797.5
+        ],
+        [
+          -1330.0,
+          800.9
+        ],
+        [
+          -1328.1,
+          804.4
+        ],
+        [
+          -1326.2,
+          808.0
+        ],
+        [
+          -1324.5,
+          811.6
+        ],
+        [
+          -1322.8,
+          815.2
+        ],
+        [
+          -1321.1,
+          818.8
+        ],
+        [
+          -1319.2,
+          822.4
+        ],
+        [
+          -1317.5,
+          826.0
+        ],
+        [
+          -1317.4,
+          830.0
+        ]
+      ],
+      "fence": [
+        "SM_ChainlinkFenceA6",
+        "SM_ChainlinkFenceA6",
+        "SM_ChainlinkFenceA9"
+      ],
+      "hedge": false,
+      "barriers": true,
+      "fence_kg": 100000.0,
+      "barrier_kg": 750.0,
+      "light_cd": 3000.0,
+      "front_m": 0.0,
+      "fence_back_m": 0.8,
+      "fence_static": true
+    },
+    {
+      "points": [
+        [
+          -1334.0,
+          794.0
+        ],
+        [
+          -1338.0,
+          794.3
+        ],
+        [
+          -1341.6,
+          796.0
+        ],
+        [
+          -1345.2,
+          797.7
+        ],
+        [
+          -1348.9,
+          799.4
+        ],
+        [
+          -1352.6,
+          801.0
+        ],
+        [
+          -1356.2,
+          802.6
+        ],
+        [
+          -1359.9,
+          804.3
+        ],
+        [
+          -1363.5,
+          805.9
+        ],
+        [
+          -1367.2,
+          807.5
+        ],
+        [
+          -1370.9,
+          809.1
+        ],
+        [
+          -1374.6,
+          810.7
+        ],
+        [
+          -1378.2,
+          812.3
+        ],
+        [
+          -1381.9,
+          813.9
+        ],
+        [
+          -1385.6,
+          815.5
+        ],
+        [
+          -1389.2,
+          817.2
+        ]
+      ],
+      "fence": false,
+      "hedge": false,
+      "barriers": true,
+      "continuous": true,
+      "front_m": 0.0,
+      "lights": true,
+      "light_every_m": 25.0,
+      "light_toward_m": 0.0,
+      "barrier_kg": 750.0,
+      "light_cd": 3000.0
+    },
+    {
+      "points": [
+        [
+          -1317.4,
+          830.0
+        ],
+        [
+          -1310.0,
+          841.4
+        ],
+        [
+          -1308.4,
+          845.1
+        ],
+        [
+          -1306.8,
+          848.8
+        ],
+        [
+          -1305.1,
+          852.4
+        ],
+        [
+          -1303.3,
+          856.0
+        ],
+        [
+          -1301.4,
+          859.6
+        ],
+        [
+          -1299.3,
+          863.0
+        ],
+        [
+          -1297.0,
+          866.2
+        ],
+        [
+          -1294.6,
+          869.4
+        ],
+        [
+          -1292.1,
+          872.6
+        ],
+        [
+          -1289.7,
+          875.7
+        ],
+        [
+          -1287.2,
+          878.9
+        ],
+        [
+          -1284.8,
+          882.1
+        ]
+      ],
+      "fence": false,
+      "hedge": false,
+      "barriers": true,
+      "continuous": true,
+      "front_m": 0.0,
+      "lights": true,
+      "light_every_m": 25.0,
+      "light_toward_m": 0.0,
+      "barrier_kg": 750.0,
+      "light_cd": 3000.0,
+      "max_from_route_m": 12.0
+    }
   ]
 }

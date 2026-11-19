@@ -60,6 +60,9 @@ def _add_ground_cover_species():
     import wr_groundcover
     vm = _df.load_json("wrcg_vegetation_map.json")
     vm["acr_species"].update(wr_groundcover.species_defs())
+    for _k, _meshes in wr_groundcover.TREE_MESHES.items():
+        if _meshes and _k in vm["acr_species"]:
+            vm["acr_species"][_k]["meshes"] = list(_meshes)
     _em.DATA["wrcg_vegetation_map.json"] = _df.scramble(json.dumps(vm, ensure_ascii=False).encode("utf-8"))
 
 

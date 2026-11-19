@@ -2,7 +2,7 @@
 
 The far forest (wr_groundcover far_pine / far_oak / far_maple / far_olive: ACR's Aleppo pine, Smoketree, Black maple and
 Olive trees) is seen from far away as the stock impostor, whose material M_Impostor darkens the baked ambient occlusion:
-AO Pow Pre 2.1, AO Min 0.05. Universal (owner 2026-11-15, after Seyabei): stage build "far_tree_light" (true by default, false = off, or {"ao_min": 0.45, "ao_pow": 1.3}) gives each of those meshes copies
+AO Pow Pre 2.1, AO Min 0.05. Universal (owner 2026-11-15, after Seyabei): stage build "far_tree_light" (true by default, false = off, or {"ao_min": 0.37, "ao_pow": 1.46}) gives each of those meshes copies
 of its impostor material (and of the impostor's LOD-transition child) with those two values, written into the stage's
 content like the snow trees' (wr_snowtrees.py); the other slots keep the stock materials. Not checked in game: whether
 the impostor is what is black (the leaf LOD and the billboard are not touched), and the right values.
@@ -12,9 +12,9 @@ from pathlib import Path
 
 import wr_snowtrees as st
 
-DEFAULTS = {"ao_min": 0.45, "ao_pow": 1.3}
-MESHES = {f"/Game/Foliage/Trees/{d}/SM_{d}0{i}" for d, ns in
-          (("AleppoPine", (1, 2, 3)), ("Smoketree", (1,)), ("Blackmaple", (1, 2)), ("Olivetree", (1, 2, 3))) for i in ns}
+DEFAULTS = {"ao_min": 0.37, "ao_pow": 1.46}      # 80 % of the 2026-11-15 lightening (owner 2026-11-19): from the stock 0.05 / 2.1 to 0.45 / 1.3 was 100 %
+MESHES = {f"/Game/Foliage/Trees/{d}/SM_{d}{i:02d}" for d, ns in      # AleppoPine 01-03: the far forest only (the roadside pines blurred in)
+          (("AleppoPine", (1, 2, 3, 5, 6, 9, 10)), ("Smoketree", (1,)), ("Blackmaple", (1, 2)), ("Olivetree", (1, 2, 3))) for i in ns}
 OUT_DIR = "WrFarTrees"
 _made = {}
 
@@ -66,7 +66,7 @@ def materials_for(mesh_pkg, opts, stage_name, out_legacy, work_acr, log=print):
 
 def main():
     assert options({}) == DEFAULTS and options({"far_tree_light": False}) is None
-    assert options({"far_tree_light": {"ao_min": 0.3}})["ao_pow"] == 1.3
+    assert options({"far_tree_light": {"ao_min": 0.3}})["ao_pow"] == DEFAULTS["ao_pow"]
     d = {"Exports": [{"Data": [{"Name": "ScalarParameterValues", "Value": [{"Value": [
         {"Name": "ParameterInfo", "Value": [{"Name": "Name", "Value": "AO Min"}]},
         {"Name": "ParameterValue", "Value": 0.05}]}]}]}]}

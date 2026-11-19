@@ -103,31 +103,39 @@ def vehicle_props(template, cfg):
     return out
 
 
-def rock_props(insts, cfg):
+def rock_props(insts, cfg, more=None):
     """Stage build "rocks": {"psi_name": "M_RED_ROCK_02_B", "m_from": 3052, "m_to": 3092, "step_m": 5, "lateral_m": 6.5,
     "sink_m": 0.5}: copies of a WRCG rock prop that the level already has (so its model path is known), in a line at lateral_m
-    (positive = left of travel) along the route, each turned and scaled a little. Blocks cutting a bend where the ground
+    (positive = left of travel) along the route, each turned and scaled a little ("rocks" may be a list of such dicts; "aligned": true
+    keeps them straight along the route; `more()` gives other props to find the template in). Blocks cutting a bend where the ground
     reads as drivable (owner 2026-11-16, Seyabei m 3070, inside of the left bend)."""
-    r = (cfg or {}).get("rocks")
-    if not r:
-        return []
-    tmpl = next((p for p in insts if p.psi_name == r["psi_name"]), None)
-    if tmpl is None:
-        print(f"    rocks: no {r['psi_name']} among the level's props, none added")
-        return []
-    route = route_of(cfg)
+    rs = (cfg or {}).get("rocks")
+    rs = rs if isinstance(rs, list) else ([rs] if rs else [])
     out = []
-    for k, m in enumerate(np.arange(float(r["m_from"]), float(r["m_to"]) + 1e-6, float(r.get("step_m", 5.0)))):
-        c, h = at(route, float(m), float(r["lateral_m"]) + (0.4 if k % 2 else -0.4))
-        t = math.atan2(h[1], h[0]) + math.radians(37.0 * k)
-        sc = 1.0 + 0.15 * math.sin(k * 2.3)
-        w = np.array([[sc * math.cos(t), -sc * math.sin(t), 0, c[0]], [sc * math.sin(t), sc * math.cos(t), 0, c[1]],
-                      [0, 0, sc, c[2] - float(r.get("sink_m", 0.5))], [0, 0, 0, 1]])
-        p = copy.copy(tmpl)
-        for a, v in (("name", f"WrcgScene_Rock_{k}"), ("node_id", f"scenerock{k}"), ("parent_name", "WrcgScene"),
-                     ("path", f"WrcgScene/Rock_{k}"), ("spawner_id", None), ("world", w)):
-            setattr(p, a, v)
-        out.append(p)
+    for n, r in enumerate(rs):                         # "aligned": true = no turn and no scale change (a row of bales: owner 2026-11-16)
+        names = r["psi_name"] if isinstance(r["psi_name"], list) else [r["psi_name"]]       # a list: used in turn, one per step (poles 01-03)
+        pool = list(insts)
+        if more is not None and not all(any(p.psi_name == nm for p in pool) for nm in names):
+            pool += list(more())
+        tmpls = [next((p for p in pool if p.psi_name == nm), None) for nm in names]
+        if any(t is None for t in tmpls):
+            print(f"    rocks: no {', '.join(nm for nm, t in zip(names, tmpls) if t is None)} among the level's props, none added")
+            continue
+        route = route_of(cfg)
+        for k, m in enumerate(np.arange(float(r["m_from"]), float(r["m_to"]) + 1e-6, float(r.get("step_m", 5.0)))):
+            al = bool(r.get("aligned"))
+            c, h = at(route, float(m), float(r["lateral_m"]) + (0.0 if al else (0.4 if k % 2 else -0.4)))
+            t = math.atan2(h[1], h[0]) + (math.radians(float(r.get("yaw_deg", 0.0))) if al else math.radians(37.0 * k))     # yaw_deg: turn of an aligned prop (a pylon's arm is its local +Y: -90)
+            sc = 1.0 if al else 1.0 + 0.15 * math.sin(k * 2.3)
+            w = np.array([[sc * math.cos(t), -sc * math.sin(t), 0, c[0]], [sc * math.sin(t), sc * math.cos(t), 0, c[1]],
+                          [0, 0, sc, c[2] - float(r.get("sink_m", 0.5))], [0, 0, 0, 1]])
+            p = copy.copy(tmpls[k % len(tmpls)])
+            p.scene_solid = bool(r.get("solid", True))              # "solid": false = no collision made for it (cables)
+            tag = f"{n}_{k}" if n else f"{k}"
+            for a, v in (("name", f"WrcgScene_Rock_{tag}"), ("node_id", f"scenerock{tag}"), ("parent_name", "WrcgScene"),
+                         ("path", f"WrcgScene/Rock_{tag}"), ("spawner_id", None), ("world", w)):
+                setattr(p, a, v)
+            out.append(p)
     return out
 
 

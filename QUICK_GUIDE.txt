@@ -70,3 +70,6 @@ The other stages of the pack are reused, not built again. Keep the PC free while
 - Disk space: each built stage takes about 3 GB. "Free up space..." (bottom bar) deletes the cache of the stages you
   tick; it marks the ones that have a .stage copy next to the tool as safe. Or, once saved as .stage, you can delete
   the work folder, run INSTALAR.bat again (a few seconds) and import the stage again later.
+
+AUTOMATIC UPDATES (1.6+)
+At every launch, the app checks GitHub for a newer stable release. Accept the prompt to download, verify, install and restart. Existing settings, pictures, stages and caches are preserved. Offline use still works. Users on 1.5 or older must install 1.6 manually once. Rebuild a stage to apply rendering changes; Update pack reuses its existing cache.

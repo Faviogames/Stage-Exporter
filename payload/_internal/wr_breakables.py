@@ -207,6 +207,8 @@ def add_box_body(uasset, log=print, panel=False):
 def make_physical(dst, roots, log=print):
     """WRCG's breakable props (BREAKABLE_PSI) in the level as ACR physical actors with their own mesh."""
     import wr_perf
+    import tools.acrmod.stagectx as sc
+    hard = [w.upper() for w in (_cfg(sc.cur().slug).get("solid_by_name") or [])]      # solid obstacles by name: never breakable
     todo = []
     for i in range(1, len(dst.exports) + 1):
         e = dst.exp(i)
@@ -215,7 +217,7 @@ def make_physical(dst, roots, log=print):
             continue
         stem = re.sub(r"_\d+$", "", name[len(PROP_PREFIX):])
         psi = wr_perf._PSI.get(stem)
-        if not psi or not BREAKABLE_PSI.search(str(psi)):
+        if not psi or not BREAKABLE_PSI.search(str(psi)) or any(w in str(psi).upper() for w in hard):
             continue
         cp = _prop(e, "StaticMeshComponent")
         mp = _prop(dst.exp(cp["Value"]), "StaticMesh") if cp else None

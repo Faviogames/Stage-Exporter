@@ -55,7 +55,14 @@
   "dressing false (owner drive 13): WRCG's own SS3 start arch (EKO) and finish arch (SS3_Arch_Marketing_Wolf) are in scope; ACR's 'Rally Greece' gantries doubled them.",
   "decal_mark_opacity 0.5 replaces decal_opacity (owner drive 13): halving every decal uncovered the overlap of GR_SS3_ROAD_1.19 and _1.78 at the first hairpin ('clear artifact of trying to join both roads'); only tyre / turn marks are halved now.",
   "start (owner 2026-10-30, D-050 addendum): the line stays at WRCG's Start_Pos grid (s 55 m; moving it to the arch put the car under the arch, 'more nonsensical'); the car stood ~1.4 m right of the grid because Start_Pos lies off WRCG's road spline -> the start trigger (ACR spawns the normal-start car there) is shifted sideways by Start_Pos's offset from the route (build_stage.start_lateral_cm).",
-  "2026-11-15 (owner: Kenya's map is nearly optimal, enable the rest): auto_crowd, crowd_penalty and support_vehicles on as in ke_ss2; not enabled here: animals, road_tint/terrain_match, decals:false, ground_cover_pebbles (Kenya-specific). Untested on this stage."
+  "2026-11-15 (owner: Kenya's map is nearly optimal, enable the rest): auto_crowd, crowd_penalty and support_vehicles on as in ke_ss2; not enabled here: animals, road_tint/terrain_match, decals:false, ground_cover_pebbles (Kenya-specific). Untested on this stage.",
+  "2026-11-18 (owner): crowd_add: 3 spectators 0.8 m behind the red net at route m 1295 (the owner stood on its piece at WRCG 1229.6, 1460.3), each with its own penalty cone (cone_each) 0.2 m from the net so nobody hits the net on purpose there.",
+  "2026-11-18 (owner): crowd_sit: 2 spectators sitting on the ground (pose Sitting; SittingRock sits them on a rock) on the little hill at route m 2270 (WRCG 450.7, 1314.1; 7 m from the road), facing the road. ACR's crowd has no kneeling animation.",
+  "2026-11-18 (owner): crowd_add: 3 spectators 0.8 m behind the red-white net at route m 3579 (left side, WRCG -692.6, 1292.8), each with its own penalty cone (cone_each).",
+  "2026-11-18 (owner): crowd_sit hill people at m 2270 removed (not visible in game, cause not found: ~40 deg slope suspected; see roadmap/GUIA_EDICION_DE_MAPAS.md). The crowd_sit code stays, unused.",
+  "2026-11-18 (owner, test): escape_reaction: ACR's BC_CrowdEscapeReaction_C (crowd that runs away when the car passes its trigger) at route m 2979, where the owner stood (WRCG -142.4, 1410.1; 1.9 m left of the road centre, i.e. on the road edge). Variant by side (left of the road -> HandFree_Right_01); trigger 50 m before him. See wr_escape.py. Untested in game.",
+  "2026-11-18 (owner): start_marshal_m 13: the countdown marshal stands in line with the start arch (ARCH_START_GR, route m 13) as on Seyabei (arch and marshal both at m 8); the core put him at m 8, 5 m before the arch, nearer the car. Sideways offset unchanged (~3 m left of the arch centre, as on Seyabei). Untested in game.",
+  "2026-11-18 (owner): escape_reaction REMOVED from this stage after a first test (the person stood still, never ran); to retry later, add back \"escape_reaction\": [{\"at\": [-142.4, 1410.07, 621.65], \"trigger_m\": 50}] (route m 2979, left edge). The code stays in wr_escape.py; see roadmap/GUIA_EDICION_DE_MAPAS.md and roadmap/ESCAPE_REACTION.md."
  ],
  "startends_stage": "SS3",
  "decal_min_roughness": 0.75,
@@ -69,6 +76,22 @@
  "air_temperature_c": 20.0,
  "crowd": true,
  "crowd_tag": "SS3",
+ "crowd_add": [
+  {
+   "at": [1229.61, 1460.31, 515.0],
+   "n": 3,
+   "depth_m": 0.8,
+   "spread_m": 0.8,
+   "cone_each": true
+  },
+  {
+   "at": [-692.62, 1292.78, 676.35],
+   "n": 3,
+   "depth_m": 0.8,
+   "spread_m": 0.8,
+   "cone_each": true
+  }
+ ],
  "ground_cover": true,
  "rvt": true,
  "finish_marshal": true,

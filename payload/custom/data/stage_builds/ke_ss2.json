@@ -118,7 +118,14 @@
     "2026-11-16 (after the test drive): WRCG nets stay everywhere (acr_nets.nets false: ACR's net looked small and torn); only the red net of m 3030-3110 becomes ACR plastic barriers (240 kg each = 2x). Fixed: WRCG sticks of those pieces now leave (replaces_stick checked wrcg_tape_post_physics first) and net_fill lights read the unfiltered cloth so the barriers keep their light.",
     "2026-11-16: green net restored outside the rocks: cloth_skip only m 3049-3088 (pieces up to m 3048 and from 3089 are >= 2.2 m from the rocks); STICK01 near_cloth drop now only for posts at the pieces still left out and not at a kept piece's end.",
     "2026-11-16 (owner): net_fill cd 5000 -> 3500, the level of Ngema's km 1.6 lights that the owner found good.",
-    "2026-11-16 (owner): artificial fill lights at 3000 cd in both (Ngema fence_rows, Seyabei net_fill)."
+    "2026-11-16 (owner): artificial fill lights at 3000 cd in both (Ngema fence_rows, Seyabei net_fill).",
+    "2026-11-16 (owner): plastic barriers unbreakable (100000 kg), as in Ngema: destroyed props did not come back on a game restart.",
+    "2026-11-17 (owner): Seyabei's plastic barriers back to 240 kg (the unbreakable change was only for Ngema's metal panels).",
+    "2026-11-19 (owner): crowd_add: 3 spectators in a row 0.8 m behind the red net at route m ~2297 (right side, WRCG 199.8, -682.2), each with its own penalty cone (cone_each), as on Greece. Untested.",
+    "2026-11-19 (owner): 3 parallel red nets at route m 3915-3950 (lateral ~4.8 / 6.5 / 9 m): cloth_skip keep_nearest 1.0 leaves only the one nearest to the road (+ their STICK01 posts dropped), and crowd_add 4 spectators in a row ('pedescontrol': they stop drivers from abusing the net) 0.8 m behind it at m 3946 (WRCG 1416.6, -921.8). Untested.",
+    "2026-11-19 (owner): pedescontrol: crowd_add 3 spectators in a row 0.8 m behind the red net at route m 5658 (left side, WRCG 1689.2, -1621.6), cone_each. Untested.",
+    "2026-11-19 (owner: Kenya's start marshal and red box 'not tight'): start_marshal_m 8 / start_box_shift_m 0 removed, so the universal rule applies (marshal stays at 8 m: arch at m 8 is the core's floor; the red box moves up to 3.5 m before the marshal, expected about +2.9 m: log line 'start box ... moved').",
+    "2026-11-19 (owner: the Ngema mix worked): ke_ss2 tree_meshes = same Fig/Smoketree/Baretree mix as ke_ss1 (replaces the olive -> Smoketree test). Untested here."
   ],
   "export": {
     "vegetation": "replay",
@@ -233,6 +240,15 @@
       ],
       "near_cloth": "LARGENET_GREEN",
       "cloth_m": 1.0
+    },
+    {
+      "psi": "STICK01",
+      "m": [
+        3905,
+        3955
+      ],
+      "near_cloth": "NET_RED",
+      "cloth_m": 1.0
     }
   ],
   "net_fill": [
@@ -262,6 +278,12 @@
       "match": "LARGENET_GREEN",
       "from_m": 3049,
       "to_m": 3088
+    },
+    {
+      "match": "NET_RED",
+      "from_m": 3905,
+      "to_m": 3955,
+      "keep_nearest": 1.0
     }
   ],
   "road_solid": [
@@ -282,5 +304,178 @@
         "barrier_kg": 240.0
       }
     ]
-  }
+  },
+  "tree_meshes": {
+    "oak": {
+      "mix": [
+        {
+          "mesh": "Fig/SM_Fig01",
+          "weight": 0.25,
+          "scale": [
+            0.7,
+            1.0
+          ]
+        },
+        {
+          "mesh": "Fig/SM_Fig02",
+          "weight": 0.25,
+          "scale": [
+            0.7,
+            1.0
+          ]
+        },
+        {
+          "mesh": "Smoketree/SM_Smoketree02",
+          "weight": 0.11666666666666665,
+          "scale": [
+            0.8,
+            1.1
+          ]
+        },
+        {
+          "mesh": "Smoketree/SM_Smoketree04",
+          "weight": 0.11666666666666665,
+          "scale": [
+            0.8,
+            1.1
+          ]
+        },
+        {
+          "mesh": "Smoketree/SM_Smoketree06",
+          "weight": 0.11666666666666665,
+          "scale": [
+            0.8,
+            1.1
+          ]
+        },
+        {
+          "mesh": "Baretree/SM_Baretree04",
+          "weight": 0.049999999999999996,
+          "scale": [
+            0.3,
+            0.5
+          ]
+        },
+        {
+          "mesh": "Baretree/SM_Baretree05",
+          "weight": 0.049999999999999996,
+          "scale": [
+            0.3,
+            0.5
+          ]
+        },
+        {
+          "mesh": "Baretree/SM_Baretree06",
+          "weight": 0.049999999999999996,
+          "scale": [
+            0.3,
+            0.5
+          ]
+        }
+      ]
+    },
+    "olive": {
+      "mix": [
+        {
+          "mesh": "Fig/SM_Fig01",
+          "weight": 0.25,
+          "scale": [
+            0.6,
+            0.9
+          ]
+        },
+        {
+          "mesh": "Fig/SM_Fig02",
+          "weight": 0.25,
+          "scale": [
+            0.6,
+            0.9
+          ]
+        },
+        {
+          "mesh": "Smoketree/SM_Smoketree02",
+          "weight": 0.11666666666666665,
+          "scale": [
+            0.8,
+            1.1
+          ]
+        },
+        {
+          "mesh": "Smoketree/SM_Smoketree04",
+          "weight": 0.11666666666666665,
+          "scale": [
+            0.8,
+            1.1
+          ]
+        },
+        {
+          "mesh": "Smoketree/SM_Smoketree06",
+          "weight": 0.11666666666666665,
+          "scale": [
+            0.8,
+            1.1
+          ]
+        },
+        {
+          "mesh": "Baretree/SM_Baretree04",
+          "weight": 0.049999999999999996,
+          "scale": [
+            0.3,
+            0.5
+          ]
+        },
+        {
+          "mesh": "Baretree/SM_Baretree05",
+          "weight": 0.049999999999999996,
+          "scale": [
+            0.3,
+            0.5
+          ]
+        },
+        {
+          "mesh": "Baretree/SM_Baretree06",
+          "weight": 0.049999999999999996,
+          "scale": [
+            0.3,
+            0.5
+          ]
+        }
+      ]
+    }
+  },
+  "crowd_add": [
+    {
+      "at": [
+        199.8,
+        -682.2,
+        1886.85
+      ],
+      "n": 3,
+      "depth_m": 0.8,
+      "spread_m": 0.8,
+      "cone_each": true
+    },
+    {
+      "at": [
+        1416.6,
+        -921.8,
+        1887.0
+      ],
+      "n": 4,
+      "depth_m": 0.8,
+      "spread_m": 0.8,
+      "cone_each": true
+    },
+    {
+      "at": [
+        1689.2,
+        -1621.6,
+        1924.5
+      ],
+      "n": 3,
+      "depth_m": 0.8,
+      "spread_m": 0.8,
+      "cone_each": true
+    }
+  ]
 }

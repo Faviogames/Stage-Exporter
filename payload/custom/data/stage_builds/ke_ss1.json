@@ -78,7 +78,25 @@
     "2026-11-16 (owner): fence_rows lights -30% (light_cd 3500); BOUTEILLE drop not needed here (removed from every Kenya config except Seyabei).",
     "2026-11-16 (owner): grass_light OFF by default (failed); fence_rows: barriers 375 kg, metal panels 750 kg (+50 %); pieces on the road mesh or < 2.8 m from the route are left out (wr_fencerow off_road).",
     "2026-11-16 (owner): fence_rows lights another -15 % (light_cd 3500 -> 2975).",
-    "2026-11-16 (owner): artificial fill lights at 3000 cd in both (Ngema fence_rows, Seyabei net_fill)."
+    "2026-11-16 (owner): artificial fill lights at 3000 cd in both (Ngema fence_rows, Seyabei net_fill).",
+    "2026-11-16 (owner, m ~1602): fence_rows[0] = metal fence with the red/white plastic barriers in front of it and never on the road: panels set back 0.8 m (fence_back_m), barriers on the old line (front_m 0), a barrier is skipped when it would stand on the road mesh.",
+    "2026-11-16 (owner): masses +100 %: barriers 375 -> 750 kg, metal panels 750 -> 1500 kg.",
+    "2026-11-16 (owner, m ~1102): crowd_add = 4 spectators behind the red tape's post at WRCG (-1266.2, 361.3), on the side away from the route (groups of 3+ get the red flare).",
+    "2026-11-16 (owner, m ~1606, outside of the left bend): rocks = 2 WRCG white plastic hay bales (CMN_PLASTIC_WHITE_HAYBALL_DIRT, 1.8 m) in a row at lateral -8.8 (right), aligned with the route; a mattress for a car that overshoots. Collision from the bale's LOD0 mesh (PM_WallPlasticBarrier).",
+    "2026-11-16 (owner): first hay bale (m 1605) was on the red net (net at lateral -8.4 there, running diagonally from -11 at m 1603 to -6.6 at m 1607): moved to lateral -10.6, the same 2.2 m outside the net as the second one (m 1606.9, -8.8).",
+    "2026-11-16 (owner): destroyed props do not come back when the game restarts -> the metal panels and plastic barriers are unbreakable (100000 kg each, fence_kg / barrier_kg).",
+    "2026-11-17 (owner): only the metal panels are unbreakable (fence_kg 100000); the plastic barriers go back to 750 kg.",
+    "2026-11-17 (owner, m ~1612, lateral -30): fence_rows[2] barriers farther than 12 m from the route are left out (a line of barriers behind the red net, 13-56 m from the road); rows 0 and 1 untouched.",
+    "2026-11-17 (owner, m ~4358): the STICK_WOOD wooden sticks of the straight (m 4232-4422, both sides, 19) are dropped (props_at box) and replaced by WRCG's High_Fence poles POLE_01-03 + CABLES_01/02 (5 m each, like the m 2700-2735 fence): rocks entries at lateral -12.5 (m 4228-4380) and +15 (m 4298-4425); poles get collision, cables none.",
+    "2026-11-17 (owner: it was the electric towers, not the high fence): the High_Fence poles/cables of the straight are replaced by WRCG's PYLON_04 electric pylons (13.7 m, their cable arm is local +Y, 37 m to the next one) every 37 m at lateral -12.5, m 4228-4425, arm along the road (yaw_deg -90). STICK_WOOD of m 4232-4422 stay dropped.",
+    "2026-11-17 (owner): the metal panels still broke and vanished with 100000 kg (ACR's PhysicsActorComponent logic is native, mass did not stop it): fence_rows[0].fence_static = plain StaticMeshActor of SM_ChainlinkFenceA6/A9 with BlockAll collision, so they cannot fall. Untested in game (collision, orientation).",
+    "2026-11-17: ultimo pilon (m 4413) girado 180 grados: su brazo de cable apunta hacia atras, sobre el cable del pilon anterior, para que no quede un cable al aire.",
+    "2026-11-17: linea de pilones alargada hasta m 4746 (ultimo girado 180 grados).",
+    "2026-11-19 (owner): blurred roadside trees at m 1770 are 'oak' = Smoketree01 (the olives of ke_ss2 were swapped to Smoketree02/04/06 for the same blur); tree_meshes oak -> Smoketree 02/04/06. Untested: whether 02/04/06 blur too.",
+    "2026-11-19 (owner: 'probemos con Baretree por probar'): ke_ss1 tree_meshes oak and olive -> ACR Baretree 01/03/04/06 (dry bare trees, 15-18 m at scale 1, so scale 0.3-0.5 = 5-9 m). Replaces the Smoketree 02/04/06 test. Untested.",
+    "2026-11-19 (owner): Baretree 02/04/06 instead of 01/03/04/06 (the pines blurred with 01-03, fine with 05/06/09/10; Baretree02 is 22 m at scale 1, so 6.5-11 m at 0.3-0.5).",
+    "2026-11-19 (owner: 02 too big): ke_ss1 Baretree 04/05/06 (15-19 m at scale 1; scale 0.3-0.5).",
+    "2026-11-19 (owner): ke_ss1 tree mix for oak and olive (instances rewritten by wr_fixes._mix_instances): ACR Fig 01/02 50 %, Smoketree 02/04/06 35 %, Baretree 04/05/06 15 % (fewest), each with its own scale range. Untested."
   ],
   "export": {
     "vegetation": "replay",
@@ -247,6 +265,16 @@
       ],
       "radius": 12.0,
       "action": "drop"
+    },
+    {
+      "psi": "STICK_WOOD",
+      "box": [
+        -366.6,
+        1455.8,
+        -144.4,
+        1600.2
+      ],
+      "action": "drop"
     }
   ],
   "crowd_drop": [
@@ -315,9 +343,12 @@
       ],
       "hedge": false,
       "barriers": true,
-      "fence_kg": 750.0,
-      "barrier_kg": 375.0,
-      "light_cd": 3000.0
+      "fence_kg": 100000.0,
+      "barrier_kg": 750.0,
+      "light_cd": 3000.0,
+      "front_m": 0.0,
+      "fence_back_m": 0.8,
+      "fence_static": true
     },
     {
       "points": [
@@ -394,7 +425,7 @@
       "lights": true,
       "light_every_m": 25.0,
       "light_toward_m": 0.0,
-      "barrier_kg": 375.0,
+      "barrier_kg": 750.0,
       "light_cd": 3000.0
     },
     {
@@ -464,8 +495,9 @@
       "lights": true,
       "light_every_m": 25.0,
       "light_toward_m": 0.0,
-      "barrier_kg": 375.0,
-      "light_cd": 3000.0
+      "barrier_kg": 750.0,
+      "light_cd": 3000.0,
+      "max_from_route_m": 12.0
     }
   ],
   "sky": {
@@ -493,5 +525,193 @@
   "greece_gravel_dust": true,
   "pacenote_drop_tokens": [
     "WATER"
-  ]
+  ],
+  "crowd_add": [
+    {
+      "at": [
+        -1266.2,
+        361.3,
+        1874.0
+      ],
+      "n": 4,
+      "depth_m": 0.9,
+      "spread_m": 0.9
+    }
+  ],
+  "rocks": [
+    {
+      "psi_name": "CMN_PLASTIC_WHITE_HAYBALL_DIRT",
+      "m_from": 1605.0,
+      "m_to": 1605.0,
+      "lateral_m": -10.6,
+      "sink_m": 0.0,
+      "aligned": true
+    },
+    {
+      "psi_name": "CMN_PLASTIC_WHITE_HAYBALL_DIRT",
+      "m_from": 1606.9,
+      "m_to": 1606.9,
+      "lateral_m": -8.8,
+      "sink_m": 0.0,
+      "aligned": true
+    },
+    {
+      "psi_name": "PYLON_04",
+      "m_from": 4228.0,
+      "m_to": 4709.0,
+      "step_m": 37.0,
+      "lateral_m": -12.5,
+      "sink_m": 0.0,
+      "aligned": true,
+      "yaw_deg": -90.0
+    },
+    {
+      "psi_name": "PYLON_04",
+      "m_from": 4746.0,
+      "m_to": 4746.0,
+      "step_m": 37.0,
+      "lateral_m": -12.5,
+      "sink_m": 0.0,
+      "aligned": true,
+      "yaw_deg": 90.0
+    }
+  ],
+  "tree_meshes": {
+    "oak": {
+      "mix": [
+        {
+          "mesh": "Fig/SM_Fig01",
+          "weight": 0.25,
+          "scale": [
+            0.7,
+            1.0
+          ]
+        },
+        {
+          "mesh": "Fig/SM_Fig02",
+          "weight": 0.25,
+          "scale": [
+            0.7,
+            1.0
+          ]
+        },
+        {
+          "mesh": "Smoketree/SM_Smoketree02",
+          "weight": 0.11666666666666665,
+          "scale": [
+            0.8,
+            1.1
+          ]
+        },
+        {
+          "mesh": "Smoketree/SM_Smoketree04",
+          "weight": 0.11666666666666665,
+          "scale": [
+            0.8,
+            1.1
+          ]
+        },
+        {
+          "mesh": "Smoketree/SM_Smoketree06",
+          "weight": 0.11666666666666665,
+          "scale": [
+            0.8,
+            1.1
+          ]
+        },
+        {
+          "mesh": "Baretree/SM_Baretree04",
+          "weight": 0.049999999999999996,
+          "scale": [
+            0.3,
+            0.5
+          ]
+        },
+        {
+          "mesh": "Baretree/SM_Baretree05",
+          "weight": 0.049999999999999996,
+          "scale": [
+            0.3,
+            0.5
+          ]
+        },
+        {
+          "mesh": "Baretree/SM_Baretree06",
+          "weight": 0.049999999999999996,
+          "scale": [
+            0.3,
+            0.5
+          ]
+        }
+      ]
+    },
+    "olive": {
+      "mix": [
+        {
+          "mesh": "Fig/SM_Fig01",
+          "weight": 0.25,
+          "scale": [
+            0.6,
+            0.9
+          ]
+        },
+        {
+          "mesh": "Fig/SM_Fig02",
+          "weight": 0.25,
+          "scale": [
+            0.6,
+            0.9
+          ]
+        },
+        {
+          "mesh": "Smoketree/SM_Smoketree02",
+          "weight": 0.11666666666666665,
+          "scale": [
+            0.8,
+            1.1
+          ]
+        },
+        {
+          "mesh": "Smoketree/SM_Smoketree04",
+          "weight": 0.11666666666666665,
+          "scale": [
+            0.8,
+            1.1
+          ]
+        },
+        {
+          "mesh": "Smoketree/SM_Smoketree06",
+          "weight": 0.11666666666666665,
+          "scale": [
+            0.8,
+            1.1
+          ]
+        },
+        {
+          "mesh": "Baretree/SM_Baretree04",
+          "weight": 0.049999999999999996,
+          "scale": [
+            0.3,
+            0.5
+          ]
+        },
+        {
+          "mesh": "Baretree/SM_Baretree05",
+          "weight": 0.049999999999999996,
+          "scale": [
+            0.3,
+            0.5
+          ]
+        },
+        {
+          "mesh": "Baretree/SM_Baretree06",
+          "weight": 0.049999999999999996,
+          "scale": [
+            0.3,
+            0.5
+          ]
+        }
+      ]
+    }
+  }
 }

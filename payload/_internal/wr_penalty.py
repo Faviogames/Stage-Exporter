@@ -93,8 +93,8 @@ def write_table(write_asset, work_acr, out_uasset_dir):
 
 # --- 2. the cones ----------------------------------------------------------------------------------------------------
 
-def cone_points(spots_ue, route_ue, near_m=(3.0, 120.0)):
-    """One point per CELL_M cell, SIDE_M from a spectator toward the road (UE cm)."""
+def cone_points(spots_ue, route_ue, near_m=(3.0, 120.0), cell_m=None):
+    """One point per CELL_M cell (cell_m overrides it), SIDE_M from a spectator toward the road (UE cm)."""
     S = np.asarray(spots_ue, float)[:, :2]
     R = np.asarray(route_ue, float)[:, :2]
     seen, out = set(), []
@@ -103,7 +103,7 @@ def cone_points(spots_ue, route_ue, near_m=(3.0, 120.0)):
         i = int(d.argmin())
         if not (near_m[0] * 100 <= d[i] <= near_m[1] * 100):
             continue
-        cell = FINISH_CELL_M if i >= len(R) - FINISH_DENSE_M else CELL_M       # the finish crowd: a denser wall of cones (owner 2026-11-16: walked through)
+        cell = cell_m or (FINISH_CELL_M if i >= len(R) - FINISH_DENSE_M else CELL_M)       # the finish crowd: a denser wall of cones (owner 2026-11-16: walked through)
         k = (cell, int(p[0] // (cell * 100)), int(p[1] // (cell * 100)))
         if k in seen:
             continue

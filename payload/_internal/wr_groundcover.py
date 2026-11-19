@@ -208,6 +208,10 @@ FAR_DENSITY_HA = {"gravel_forest": 260, "Grass": 90, "Grass_Dry": 75, "Grass_Yel
                   "Gravel_Dry_Grass": 60, "Scarp": 25, "Scarp_2": 25, "Rock_1": 15, "LimeStone": 15, "Dry_Mud": 10,
                   "Dry_Mud_2": 10}
 FAR_MIX = {"far_pine": 0.6, "far_oak": 0.2, "far_maple": 0.1, "far_olive": 0.1}
+# (the far forest keeps AleppoPine 01-03: seen as impostors, owner 2026-11-19 "in the far forest you can use it")
+# Replayed trees: meshes ACR's own Greek stage uses (Elatia: AleppoPine 05/06/10 in 30 of its 34 pine groups, 01 in 2) instead of the
+# core's 01-03 (owner 2026-11-19: the roadside trees "blur" in as they appear; ACR's barely do). Test, empty = the core's own.
+TREE_MESHES = {"pine": [f"/Game/Foliage/Trees/AleppoPine/SM_AleppoPine{n}" for n in ("05", "06", "10", "09")]}
 
 
 def species_defs():
