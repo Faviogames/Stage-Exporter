@@ -1,0 +1,24 @@
+Stage Exporter 1.6.2
+
+INSTALACION / INSTALL
+- Manual (recomendado / recommended): Stage-Exporter-v1.6.2-Instalar.zip. Extract inside the Sando tool folder and run INSTALAR.bat.
+  It is the only package that carries the new bin/ files (ACR 26756580 compatibility). Needed if your ACR is build 26756580.
+- Stage-Exporter-v1.6.2.zip: only for the automatic update of 1.6 / 1.6.1 clients (their updater rejects bin/). It does not
+  include the compatibility files: if the export says "ACR 0.7 compatibility files missing", install the -Instalar zip.
+
+NOVEDADES / CHANGES
+- Compatible with Assetto Corsa Rally build 26756580 (19 Nov 2026, Sweden update). The core 0.3.7 still bakes for build 25170642,
+  so after each stage build and before packing the app (wr_compat.py):
+    * refreshes the shader maps of the materials the core cloned from ACR (they showed as grey WorldGrid in game),
+    * rewrites the baked level with the new class layout (bin/migrate, UAssetAPI) and checks it; if anything fails the pack is NOT installed.
+  It only acts on build 26756580 and refuses an unknown build (no broken pack is installed).
+- Physical materials: ACR's wood material kept when the core cannot edit the new layout; extra entry for our wood.
+- New stage key "road_texture": the colour of an ACR texture for the main road gravel (extracted from the user's own game, nothing
+  of ACR is shipped). Kenya stages use ACR's SoilAndGravel_01_BC (ground follows through terrain_match).
+- Kenya: near trees (Fig / Smoketree / Baretree mix), "pedescontrol" spectator rows behind the red nets, kept-nearest net lines.
+- "Actualizar pack" refuses to run when the game has the pack open instead of leaving ~mods half renamed.
+- The updater accepts the compatibility files under bin/ (only those names).
+
+NOTES
+- Stages exported before this version need "Actualizar pack" (levels and materials are fixed when packing) or a new export for the sand.
+- .NET 10 runtime is needed for the level migration (it ships with recent Windows/Steam setups; the export says so if it is missing).

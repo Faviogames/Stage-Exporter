@@ -21,7 +21,8 @@ if not exist "%TOOL%\_internal\wrcg2acr-worker.exe" (
 echo Instalando en: %TOOL%
 echo.
 xcopy "%HERE%payload\_internal" "%TOOL%\_internal\" /E /I /Y /Q >nul || goto :fail
-xcopy "%HERE%payload\custom" "%TOOL%\custom\" /E /I /Y /Q >nul || goto :fail
+xcopy "%HERE%payload\custom" "%TOOL%\custom\" /E /I /Y /Q >nul || goto :fail
+if exist "%HERE%payload\bin" xcopy "%HERE%payload\bin" "%TOOL%\bin\" /E /I /Y /Q >nul || goto :fail
 "%TOOL%\_internal\wrcg2acr-worker.exe" -m wr_setup || goto :fail
 echo.
 pause

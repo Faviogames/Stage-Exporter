@@ -8,7 +8,7 @@ using System.Windows.Forms;
 [assembly: System.Reflection.AssemblyTitle("WRC to ACR Stage Exporter")]
 [assembly: System.Reflection.AssemblyProduct("WRC to ACR Stage Exporter")]
 [assembly: System.Reflection.AssemblyDescription("WRC Generations stages for Assetto Corsa Rally")]
-[assembly: System.Reflection.AssemblyVersion("1.5.0.0")]
+[assembly: System.Reflection.AssemblyVersion("1.0.0.0")]
 
 static class StageStudio
 {

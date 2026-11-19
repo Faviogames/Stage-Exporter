@@ -90,6 +90,9 @@ SERIAL_ENV = "WR_SERIAL"
 
 
 def _init(self, args, *a, **k):
+    if isinstance(args, (list, tuple)) and args and Path(str(args[0])).name.lower() == "retoc.exe" and "to-zen" in args:
+        import wr_compat
+        wr_compat.before_pack(args)
     # every child step of the pipeline goes through this launcher too, so it sees the same data and fixes
     if isinstance(args, (list, tuple)) and args and Path(str(args[0])).name.lower() == "wrcg2acr-worker.exe" \
             and list(args[1:3]) != ["-m", "wr"]:
@@ -208,9 +211,15 @@ def _patch_run(pl):
         for f in [x for d in dirs for x in d.glob(pl.OWN_PACK_PREFIX + "*")]:
             # a name the pipeline does not take for our pack and an extension ACR does not load
             g = f.with_name(ASIDE_PREFIX + f.name + ".bak")
-            if g.exists():
-                g.unlink()
-            f.rename(g)
+            try:
+                if g.exists():
+                    g.unlink()
+                f.rename(g)
+            except OSError as e:                 # the game has the pack open: put back what was moved and stop
+                for g2, f2 in aside:
+                    if not f2.exists():
+                        g2.rename(f2)
+                raise SystemExit(f"Cierra Assetto Corsa Rally antes de actualizar el pack (no puedo mover {f.name}: {e})")
             aside.append((g, f))
         try:
             out = orig(wrcg, acr, slugs, *a, **k)

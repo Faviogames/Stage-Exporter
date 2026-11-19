@@ -135,5 +135,6 @@
   "greece_gravel_dust": true,
   "pacenote_drop_tokens": [
     "WATER"
-  ]
+  ],
+  "road_texture": "T_SoilAndGravel_01_BC"
 }

@@ -477,5 +477,6 @@
       "spread_m": 0.8,
       "cone_each": true
     }
-  ]
+  ],
+  "road_texture": "T_SoilAndGravel_01_BC"
 }

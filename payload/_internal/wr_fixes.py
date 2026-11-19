@@ -86,6 +86,8 @@ def before(module, args):
     import wr_skinned
     wr_skinned.patch_rmat()
     if module == "tools.acrmod.build_stage":
+        import wr_compat
+        wr_compat.prepare()
         for slug in [a for a in args if not a.startswith("-")]:
             start_pos_alias(slug)
             _drop_pacenote_tokens(slug)
@@ -113,6 +115,7 @@ def before(module, args):
         import wr_tyremarks
         wr_tyremarks.patch_build(_stage_info)
         _patch_tables()
+        _patch_physmat_wood()
         _patch_crowd()
         _patch_ground_cover_materials()
         _patch_level_save()
@@ -155,6 +158,8 @@ def after(module, args):
     if module == "tools.acrmod.build_stage":
         mod = args[args.index("--mod-dir") + 1] if "--mod-dir" in args else "wrcg_stages"
         for slug in [a for a in args if not a.startswith("-") and (WORK.parent / "custom" / "data" / "stage_builds" / f"{a}.json").exists()]:
+            import wr_compat
+            wr_compat.after_build(slug, (_cfg(slug) or {}).get("name") or slug, mod)     # ACR 26756580: materials' shader maps + level layout
             _tint_cloth(slug, mod)
             _light_props(slug, mod)
             _fix_missing_materials(slug, mod)
@@ -513,9 +518,41 @@ def _road_tone(tex_dir):
         print(f"[{slug}] asphalt textures x{factor} (linear): {', '.join(done)}")
 
 
+def _acr_png(name):
+    """wr_assets/<name>.png: the colour of an ACR texture (DXT1), made once from the user's own game (nothing of ACR is shipped)."""
+    import subprocess
+    import struct
+    import tempfile
+    import numpy as np
+    from PIL import Image
+    out = Path(__file__).resolve().parent / "wr_assets" / f"{name}.png"
+    if out.exists():
+        return out
+    import wr
+    import wr_tyremarks
+    paks = wr._installs()[1] / "acr" / "Content" / "Paks"
+    tmp = Path(tempfile.mkdtemp(prefix="wr_tex_"))
+    subprocess.run([str(ROOT / "bin" / "retoc" / "retoc.exe"), "to-legacy", str(paks), str(tmp), "-f", name, "--version", "UE5_6",
+                    "--no-shaders", "--no-script-objects"], capture_output=True)
+    uexp = next(tmp.rglob(name + ".uexp"), None)
+    if uexp is None:
+        raise RuntimeError(f"ACR texture {name} not found in the game: {paks}")
+    d = uexp.read_bytes()
+    i = d.find(b"PF_")
+    w, h, _ = struct.unpack("<3i", d[i - 16:i - 4])
+    fmt = d[i:i + struct.unpack("<i", d[i - 4:i])[0] - 1].decode()
+    bulk = uexp.with_suffix(".ubulk")
+    if fmt != "PF_DXT1" or not bulk.exists():
+        raise RuntimeError(f"ACR texture {name}: format {fmt} not supported here (DXT1 with .ubulk expected)")
+    px = wr_tyremarks._decode_bc1(bulk.read_bytes()[: w * h // 2], w, h)
+    Image.fromarray(np.ascontiguousarray(px), "RGB").save(out)
+    print(f"    ACR texture {name} extracted from the game ({w}x{h})")
+    return out
+
+
 def _road_tint(tex_dir):
     """"road_tint": [r, g, b], the road's gravel textures (ROADS_PROCEDURAL/GRAVEL) times this in linear colour (owner
-    2026-11-14: Kenya's road redder, brown, arid); "road_track_texture": the name of an ACR texture in wr_assets/ whose colour replaces the track's (alpha kept); "road_track_tint": the same for the wheel-track texture (TM_*, beige and
+    2026-11-14: Kenya's road redder, brown, arid); "road_track_texture": the name of an ACR texture in wr_assets/ whose colour replaces the track's (alpha kept); "road_texture": the same for the main road gravel textures (colour of wr_assets/<name>.png, own alpha kept, no tint; "terrain_match" then follows it); "road_track_tint": the same for the wheel-track texture (TM_*, beige and
     pale over the red road: a grey band where the wheels pass; dark brown wanted). Originals kept in _wr_orig."""
     import numpy as np
     from PIL import Image
@@ -530,8 +567,8 @@ def _road_tint(tex_dir):
     done = []
     for f in sorted(tex_dir.glob("*ROADS_PROCEDURAL__GRAVEL*_DIFF.png")):
         is_tm = "__TM_" in f.name.upper()
-        swap = cfg.get("road_track_texture") if is_tm else None
-        want = (track or ([1.0, 1.0, 1.0] if swap else None)) if is_tm else tint
+        swap = cfg.get("road_track_texture") if is_tm else cfg.get("road_texture")
+        want = (track or ([1.0, 1.0, 1.0] if swap else None)) if is_tm else ([1.0, 1.0, 1.0] if swap else tint)
         src, mine = orig_dir / f.name, state.get(f.name)
         if not (mine and src.exists() and abs(f.stat().st_mtime - mine["mtime"]) < 1e-3):
             orig_dir.mkdir(exist_ok=True)
@@ -544,7 +581,7 @@ def _road_tint(tex_dir):
         im = Image.open(src)
         a = np.asarray(im.convert("RGBA"), np.float32) / 255.0
         if swap:                       # the colour of an ACR texture (wr_assets/<name>.png), the track's own alpha kept
-            tx = Image.open(Path(__file__).resolve().parent / "wr_assets" / f"{swap}.png").convert("RGB").resize(im.size, Image.LANCZOS)
+            tx = Image.open(_acr_png(swap)).convert("RGB").resize(im.size, Image.LANCZOS)
             a[..., :3] = np.asarray(tx, np.float32) / 255.0
         a[..., :3] = _lin_to_srgb(_srgb_to_lin(a[..., :3]) * np.asarray(want, np.float32))
         out = Image.fromarray((np.clip(a, 0, 1) * 255 + 0.5).astype(np.uint8), "RGBA")
@@ -834,6 +871,78 @@ def _fix_tracks(asset):
         if cfg.get("weather_distribution") or cfg.get("air_temperature_c") is not None:
             print(f"    [{cfg['slug']}] {row['Name']}: weather {cfg.get('weather_distribution')}, "
                   f"air {cfg.get('air_temperature_c')} C")
+
+
+def _patch_physmat_wood():
+    """ACR build 26756580 (2026-11-19) changed DMPhysicalMaterial: with the core's usmap (build 25170642) the stock wood material reads as a
+    RawExport and custom_physmat.build_wood fails ('string indices must be integers'). Fallback: the stock material as it is (the wood
+    props keep ACR's own friction). A stopgap until the core knows the new build."""
+    import tools.acrmod.custom_physmat as cp
+    if getattr(cp.build_wood, "_wr_fallback", False):
+        return
+    orig = cp.build_wood
+
+    def build_wood(content_root, *a, **k):
+        try:
+            return orig(content_root, *a, **k)
+        except TypeError as e:
+            print(f"    physical material wood: the core cannot edit it with this game build ({e}); using ACR's own, unchanged")
+            import tempfile
+            from pathlib import Path
+            j = cp._clone_json("PM_GuardrailWoodHF", cp.WOOD)
+            out = Path(content_root) / (cp.WOOD[len("/Game/"):] + ".uasset")
+            out.parent.mkdir(parents=True, exist_ok=True)
+            cp.write_asset(j, Path(tempfile.mkdtemp(prefix="wr_pmw_")) / "PM_WrcgWood.json", out)
+            return cp.WOOD
+    build_wood._wr_fallback = True
+    cp.build_wood = build_wood
+    orig_map = cp.build_mapping
+
+    def build_mapping(content_root, *a, **k):          # the same for the mapping table (it only adds our wood material to ACR's)
+        try:
+            return orig_map(content_root, *a, **k)
+        except TypeError as e:
+            print(f"    physical materials mapping: the core cannot edit it with this game build ({e}); using ACR's own, unchanged")
+            import tempfile
+            from pathlib import Path
+            j = cp._clone_json("DA_PhysMaterialsMappingCommon", cp.MAPPING)
+            out = Path(content_root) / (cp.MAPPING[len("/Game/"):] + ".uasset")
+            out.parent.mkdir(parents=True, exist_ok=True)
+            cp.write_asset(j, Path(tempfile.mkdtemp(prefix="wr_pmm_")) / "DA_WrcgPhysMaterialsMapping.json", out)
+            _append_mapping_wood(out)
+            return cp.MAPPING
+    cp.build_mapping = build_mapping
+
+
+def _append_mapping_wood(uasset):
+    """Levels baked before the 26756580 update index our wood material as the entry after ACR's 44 (the game crashed with 'surfaceDefs.size()'
+    otherwise): append PM_WrcgWood to the mapping, edited with the new usmap (bin/acr_26756580.usmap)."""
+    import json, subprocess, tempfile, copy
+    from pathlib import Path
+    tool, usmap = WORK.parent / "bin" / "uatool" / "UaTool.exe", WORK.parent / "bin" / "acr_26756580.usmap"
+    if not (tool.exists() and usmap.exists()):
+        print("    physical materials mapping: bin/acr_26756580.usmap missing, wood entry not appended")
+        return
+    tmp = Path(tempfile.mkdtemp(prefix="wr_pmm_")) / "m.json"
+    subprocess.run([str(tool), "dumpjson", str(uasset), str(usmap), str(tmp)], check=True, capture_output=True)
+    j = json.loads(tmp.read_text(encoding="utf-8"))
+    pm = j["Exports"][0]["Data"][0]["Value"]
+    if len(pm) != 44:
+        print(f"    physical materials mapping: {len(pm)} entries (expected 44), wood entry not appended")
+        return
+    im, names = j["Imports"], j["NameMap"]
+    src = next(x for x in im if x.get("ObjectName") == "PM_GuardrailWoodHF")          # PM_WrcgWood is a clone of it: same import, our path
+    pkg_path = "/Game/Environments/WrcgShared/PhysicalMaterials/PM_WrcgWood"
+    pkg = dict(im[-src["OuterIndex"] - 1], ObjectName=pkg_path)
+    im.append(pkg)
+    im.append(dict(src, ObjectName="PM_WrcgWood", OuterIndex=-len(im)))
+    names += [n for n in (pkg_path, "PM_WrcgWood") if n not in names]
+    e = copy.deepcopy(pm[0])
+    e["Name"], e["ArrayIndex"], e["Value"] = str(len(pm)), len(pm), -len(im)
+    pm.append(e)
+    tmp.write_text(json.dumps(j), encoding="utf-8")
+    subprocess.run([str(tool), "fromjson", str(tmp), str(usmap), str(uasset)], check=True, capture_output=True)
+    print("    physical materials mapping: wood entry appended (45 entries)")
 
 
 def _patch_tables():

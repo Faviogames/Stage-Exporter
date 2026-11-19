@@ -713,5 +713,6 @@
         }
       ]
     }
-  }
+  },
+  "road_texture": "T_SoilAndGravel_01_BC"
 }

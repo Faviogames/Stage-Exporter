@@ -590,5 +590,6 @@
       "light_cd": 3000.0,
       "max_from_route_m": 12.0
     }
-  ]
+  ],
+  "road_texture": "T_SoilAndGravel_01_BC"
 }

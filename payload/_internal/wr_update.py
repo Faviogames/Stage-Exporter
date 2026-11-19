@@ -12,7 +12,10 @@ import urllib.request
 import zipfile
 from pathlib import Path, PurePosixPath
 
-VERSION = '1.6.1'
+VERSION = '1.6.2'
+# compatibility files with ACR build 26756580 (wr_compat.py); the only things an update may put under bin/
+BIN_FILES = {'acr_26756580.usmap', 'acr_affected_classes.json', 'migrate/Migrate.exe', 'migrate/Migrate.dll', 'migrate/Migrate.deps.json',
+             'migrate/Migrate.runtimeconfig.json', 'migrate/UAssetAPI.dll', 'migrate/Newtonsoft.Json.dll', 'migrate/ZstdSharp.dll'}
 REPO = 'Faviogames/Stage-Exporter'
 API = f'https://api.github.com/repos/{REPO}/releases/latest'
 MAX_ZIP = 50 * 1024 * 1024
@@ -77,8 +80,10 @@ def install(asset, root):
                 if len(parts) < 3 or parts[0] != 'payload':
                     continue
                 rel = Path(*parts[1:])
-                if parts[1] not in ('_internal', 'custom'):
+                if parts[1] not in ('_internal', 'custom', 'bin'):
                     raise ValueError('Unexpected update folder')
+                if parts[1] == 'bin' and '/'.join(parts[2:]) not in BIN_FILES:
+                    raise ValueError('Unexpected binary file')
                 if parts[1] == '_internal' and not (
                     len(parts) == 3 and p.name.startswith('wr') and p.suffix == '.py'
                     or parts[2] == 'wr_assets' and p.suffix in ('.ico', '.cs', '.png')):
