@@ -260,7 +260,10 @@ def net_fill_positions(zones, items, route):
             p = np.asarray(it["pos"], float)
             if it.get("scale", 1e9) < float(z.get("min_scale", 0.0)):
                 continue
-            i = int(np.hypot(R[:, 0] - p[0], R[:, 1] - p[1]).argmin())
+            dr = np.hypot(R[:, 0] - p[0], R[:, 1] - p[1])
+            i = int(dr.argmin())
+            if z.get("max_lat_m") and dr[i] > float(z["max_lat_m"]):      # only what stands this close to the road
+                continue
             if a <= i <= b:
                 side = 0
                 if z.get("per_side"):                       # one group per side of the road (+1 left of travel, -1 right)

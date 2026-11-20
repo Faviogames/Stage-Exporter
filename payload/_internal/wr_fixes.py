@@ -12,6 +12,7 @@ Stage build settings they read (data/stage_builds/<slug>.json, all optional):
   "rvt": true                           RVT volume + RVT-only terrain copies for the grass materials (wr_rvt.py)
   "net_solid" / "fence_solid" / "rock_solid" / "tree_solid" / "own_spawners_only": collision for nets, wire fences and stones, and no spawners of other stages (default ON for every stage; false switches off)
   "stop_after_m": 100                   stop control (and the finish marshal with it) this far after the finish line (default WRCG's, clamped 30-150)
+  "pre_start_max_m": 76                 pre-start lane (the car's spawn) at most this long, default 90 (Savalla: a guardrail crossed the first 10 m)
   "finish_marshal_box": 0.1             scale of the finish marshal's respawn box (1 = ACR's; small = hitting him no longer respawns)
   "finish_marshal_along_m": 3.3         finish marshal this far past the stop trigger (default 3.3, with the booth), "finish_marshal_side_m": right of the road centre (0.9)
   "finish_marshal": true                Hafren's stop marshal at the finish (wr_finish.py)
@@ -1176,7 +1177,8 @@ def _start_arch_m(slug):
 
 
 START_MARSHAL_BACK_M = 1.5     # the marshal stands this far toward the car from the start arch (owner 2026-11-19: he touched the giant WRC sign)
-START_BOX_GAP_M = 3.5          # the red box (BC_StartSequenceTrigger, where the car stops) this far before the marshal; Greece SS3 verified
+START_MARSHAL_MIN_M = 3.0      # nearest to the route start the marshal may go (the pre-start lane of the car is before it)
+START_BOX_GAP_M = 3.5         # the red box (BC_StartSequenceTrigger, where the car stops) this far before the marshal; Greece SS3 verified
 
 
 def _start_box(dst, route_cm, shift_m, slug, marshal_s_m=None):
@@ -1207,7 +1209,7 @@ def _start_box(dst, route_cm, shift_m, slug, marshal_s_m=None):
         found.append((cn, v, x, y, R[k2, :2] - R[k, :2], s_m))
     if shift_m is None:
         trig = next((f for f in found if "StartSequenceTrigger" in f[0]), None)
-        shift_m = 0.0 if trig is None or marshal_s_m is None else float(np.clip(marshal_s_m - START_BOX_GAP_M - trig[5], 0.0, 10.0))
+        shift_m = 0.0 if trig is None or marshal_s_m is None else float(np.clip(marshal_s_m - START_BOX_GAP_M - trig[5], -10.0, 10.0))
     for cn, v, x, y, d, _ in found:
         if shift_m and "PlayerStartsManager" not in cn:
             d = d / max(float(np.hypot(*d)), 1e-6)
@@ -1228,7 +1230,7 @@ def _patch_crowd():
         if m is None:
             try:
                 m = _start_arch_m(sc.cur().slug)
-                m = None if m is None else max(m - START_MARSHAL_BACK_M, 8.0)    # never nearer than the core's 8 m: the red box stands at route m 5, 3 m before it
+                m = None if m is None else max(m - START_MARSHAL_BACK_M, START_MARSHAL_MIN_M)    # Savalla's arch (m 7, spans 3.5-9.6) put marshal and box under the sign with the old 8 m floor; the box follows him (-10..+10 m); was: before it
             except Exception as e:
                 print(f"    [{sc.cur().slug}] start arch not found ({type(e).__name__}: {e}): marshal left at the core's 8 m")
         if m is not None and m is not False:       # the core puts him 8 m after the route start (= Seyabei's arch ARCH_START_KE); the stage's own arch may be elsewhere
@@ -3069,9 +3071,52 @@ def dry_road_cells(cells, water_z, pts):
 # none on Pietrosella, Panzerplatte, Sävar, Brattby and three reverses, so the car spawned 8 m from the marshal with
 # both triggers behind it. Now the pre-start goes on backwards along WRCG's road (its full track spline, then the middle
 # of the road collision, wr_finish.runoff backward) to PRE_START_M where the road allows.
-PRE_START_M = 90.0
+PRE_START_M = 49.0                              # WRC's own lane (Greece, Spain 49 m; owner 2026-11-20); Kenya stages pin "pre_start_max_m": 90
 PRE_KEEP_M = 48.0                              # stages with a WRCG start lane this long keep it, shorter ones are lengthened to PRE_START_M (owner 2026-11-18: WRC's own start whenever it has at least 48 m; Greece 49, Spain 48.9; was 30)
 _PRE = {}
+
+
+LANE_OBSTACLE_RE = r"HIGHWAY|RAIL|STICK|POST|POLE|BARRIER|PLASTIC|HAY|TIRE|TYRE|WALL|FENCE|LAMP"
+LANE_CLEAR_M = 1.4       # a prop this close to the lane's centre line is on it (the car is 1.8 m wide)
+LANE_MARGIN_M = 3.0      # the car spawns this far past the last such prop
+LANE_MIN_M = 30.0        # a lane shorter than this after the trim is left as it was
+
+
+def _clear_lane(lane, cfg):
+    """Universal (owner 2026-11-20, Savalla: the car spawned flipped on a guardrail that crossed the lane's far end): the far end
+    of the pre-start lane (where the car spawns) is cut back past the last obstacle prop (LANE_OBSTACLE_RE) within LANE_CLEAR_M
+    of its centre line. The last 20 m of the lane (the start arch's) are not looked at. Left as it was when nothing is in the way,
+    when the lane would drop under LANE_MIN_M, or on any error."""
+    import re
+    import numpy as np
+    try:
+        import tools.wrcg.prop_instances as pi
+        import wr_skinned
+        s = np.r_[0.0, np.cumsum(np.hypot(*np.diff(lane[:, :2], axis=0).T))]
+        collect = getattr(pi.collect_instances, "__wrapped_orig__", None) or pi.collect_instances
+        props, _ = collect(cfg["wrcg_level"], ("static", "dynamic", "clutter", "spline", "decor"), route_xy=lane[:, :2],
+                           near_m=LANE_CLEAR_M + 2.0, stage_mask=wr_skinned.stage_mask(cfg.get("stage_id")))
+        last = None
+        for p in props:
+            if not re.search(LANE_OBSTACLE_RE, str(p.psi_name), re.I):
+                continue
+            w = np.asarray(p.world, float)
+            q = w[:2] if w.ndim == 1 else w[:2, 3]
+            d = np.hypot(lane[:, 0] - q[0], lane[:, 1] - q[1])
+            j = int(d.argmin())
+            if d[j] < LANE_CLEAR_M and s[j] < s[-1] - 20.0 and (last is None or s[j] > last):
+                last = float(s[j])
+        if last is None:
+            return lane
+        cut = int(np.searchsorted(s, last + LANE_MARGIN_M))
+        if cut >= len(s) or s[-1] - s[cut] < LANE_MIN_M:
+            print(f"    pre-start: obstacle at {last:.0f} m of the lane, but too little would be left: kept")
+            return lane
+        print(f"    pre-start: a prop on the lane's far end (up to {last:.0f} m of {s[-1]:.0f} m): the car spawns {s[-1] - s[cut]:.0f} m before the start")
+        return lane[cut:]
+    except Exception as e:
+        print(f"    pre-start: obstacle check skipped ({type(e).__name__}: {e})")
+        return lane
 
 
 def _patch_prestart():
@@ -3087,20 +3132,25 @@ def _patch_prestart():
             slug = cfg.get("slug")
             P = np.asarray(pre, float).reshape(-1, 3)
             have = float(np.linalg.norm(np.diff(P[:, :2], axis=0), axis=1).sum()) if len(P) > 1 else 0.0
-            if not slug or have >= PRE_KEEP_M:                # a start lane of WRCG's own: kept
+            if not slug or len(P) < 2:
                 return pre
             if slug not in _PRE:
-                import wr_finish
-                sd = WORK / "wrcg" / slug
-                R = np.loadtxt(sd / "route_centerline_1m.csv", delimiter=",", skiprows=1)
-                path = np.vstack([P, R[:, 1:4]]) if len(P) else R[:, 1:4]
-                Rs = np.column_stack([np.arange(len(path), dtype=float), path])
-                back = wr_finish.runoff(sd, Rs, PRE_START_M - have, backward=True)
-                _PRE[slug] = np.vstack([back[::-1], P]) if len(back) else P
-                n = len(_PRE[slug])
-                print(f"    pre-start: {have:.0f} m from the builder, {len(back)} m more backwards along WRCG's road "
-                      f"({n} points): the car comes up to the start marshal as on ACR's stages")
+                lane = P                                       # a start lane of WRCG's own (>= PRE_KEEP_M): kept
+                if have < PRE_KEEP_M:
+                    import wr_finish
+                    sd = WORK / "wrcg" / slug
+                    R = np.loadtxt(sd / "route_centerline_1m.csv", delimiter=",", skiprows=1)
+                    path = np.vstack([P, R[:, 1:4]]) if len(P) else R[:, 1:4]
+                    Rs = np.column_stack([np.arange(len(path), dtype=float), path])
+                    want = float(cfg.get("pre_start_max_m") or PRE_START_M)       # stage key: manual cap (Savalla, owner 2026-11-20)
+                    back = wr_finish.runoff(sd, Rs, want - have, backward=True)
+                    lane = np.vstack([back[::-1], P]) if len(back) else P
+                    print(f"    pre-start: {have:.0f} m from the builder, {len(back)} m more backwards along WRCG's road "
+                          f"({len(lane)} points): the car comes up to the start marshal as on ACR's stages")
+                _PRE[slug] = _clear_lane(lane, cfg)
             out = _PRE[slug]
+            if len(out) == len(P) and np.array_equal(out, P):
+                return pre
             return out.astype(np.asarray(pre).dtype) if hasattr(pre, "dtype") and len(np.asarray(pre)) else out
         except Exception as e:
             print(f"    pre-start: kept as the builder's ({type(e).__name__}: {e})")
@@ -3602,7 +3652,7 @@ def _fill_light_positions(cfg, route):
         out, _ = pi.collect_instances(cfg["wrcg_level"], ("static", "dynamic", "clutter", "spline", "decor"), route_xy=np.asarray(route, float)[:, :2],
                                       near_m=150.0, stage_mask=wr_skinned.stage_mask(cfg.get("stage_id")))
         items += [{"pos": np.asarray(p.world, float)[:3, 3], "material": "ROCK", "scale": float(np.cbrt(abs(np.linalg.det(np.asarray(p.world, float)[:3, :3]))))} for p in out
-                  if re.search(r"ROCK|CLIFF|BOULDER", str(p.psi_name), re.I) and "WrcgScene" not in str(p.name)]
+                  if re.search(r"ROCK|CLIFF|BOULDER|SMALLWALL", str(p.psi_name), re.I) and "WrcgScene" not in str(p.name)]
     if "CROWD" in need:
         level = cfg["wrcg_level"]
         tag = cfg.get("crowd_tag") or cfg["stage_id"].split("/")[-1]

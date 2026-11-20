@@ -54,7 +54,7 @@ def color(item):
     if item.get("template") != "NetCloth":
         return None
     m = str(item.get("material")).upper()
-    return "RED" if "NET_RED" in m else "GREEN" if "LARGENET_GREEN" in m else None
+    return "RED" if "NET_RED" in m or "NET_ORANGE" in m else "GREEN" if "LARGENET_GREEN" in m else None
 
 
 def _in(rows, m, mat=None):
@@ -323,7 +323,7 @@ def add(dst, root, cfg, to_ue, ground, log):
 def main():     # self-check on synthetic pieces
     def piece(x, y, mat="NET_RED.PMA"):
         return {"pos": np.array([x, y, 0.0]), "dir": np.array([1.0, 0.0, 0.0]), "size": (2.0, 0.9), "template": "NetCloth", "material": mat}
-    assert color(piece(0, 0)) == "RED" and color(piece(0, 0, "LARGENET_GREEN.PMA")) == "GREEN" and color(dict(piece(0, 0), template="TapeCloth")) is None
+    assert color(piece(0, 0, "NET_ORANGE.PMA")) == "RED" and color(piece(0, 0)) == "RED" and color(piece(0, 0, "LARGENET_GREEN.PMA")) == "GREEN" and color(dict(piece(0, 0), template="TapeCloth")) is None
     items = [piece(2.0 * k, 0.0) for k in range(8)]
     poles, spans = spans_of(items)
     assert len(spans) <= 5 and len(poles) == len(spans) + 1, (len(spans), len(poles))

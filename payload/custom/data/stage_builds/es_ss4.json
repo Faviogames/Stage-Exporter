@@ -98,5 +98,35 @@
   "far_tree_light": true,
   "solid_by_name": [
     "SIGN_REDWHITE_ARROW"
+  ],
+  "fill_lights": [
+    {
+      "m": [
+        3000,
+        3091
+      ],
+      "material": "ROCK",
+      "every_m": 15,
+      "toward_m": 5.0,
+      "height_m": 8.0,
+      "cd": 5000,
+      "radius_cm": 2500,
+      "per_side": true,
+      "max_lat_m": 8.0
+    },
+    {
+      "m": [
+        3010,
+        3091
+      ],
+      "material": "ROCK",
+      "every_m": 15,
+      "toward_m": 5.0,
+      "height_m": 8.0,
+      "cd": 4000,
+      "radius_cm": 2500,
+      "per_side": true,
+      "max_lat_m": 8.0
+    }
   ]
 }

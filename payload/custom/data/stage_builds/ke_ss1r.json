@@ -591,5 +591,6 @@
       "max_from_route_m": 12.0
     }
   ],
-  "road_texture": "T_SoilAndGravel_01_BC"
+  "road_texture": "T_SoilAndGravel_01_BC",
+  "pre_start_max_m": 90.0
 }

@@ -310,5 +310,6 @@
       "cone_each": true
     }
   ],
-  "road_texture": "T_SoilAndGravel_01_BC"
+  "road_texture": "T_SoilAndGravel_01_BC",
+  "pre_start_max_m": 90.0
 }

@@ -177,6 +177,7 @@ def add_finish_marshal(dst, work_acr, route_ue, ground, log=print, name="WrcgFin
 # past the line, with AFTER_STOP_M of spline left after it.
 RUNOFF_MAX_M = 180.0
 STOP_MIN_M, STOP_MAX_M, STOP_DEFAULT_M = 30.0, 150.0, 100.0   # WRCG's stop controls: 35-60 m after the line
+STOP_PREFERRED_M = 70.0         # the stop control is at least this far after the timing line (WRCG's own tents: 35-60 m), road permitting
 AFTER_STOP_M = 30.0
 FALLBACK_GAP_M = 40.0           # no road for a run-off: the timing line comes this far before the stop trigger
 _LAYOUT = {}
@@ -342,6 +343,7 @@ def layout(slug, cfg, stage_dir, log=print):
     ts = [s for s in (s_of(p, 40.0) for p in tents) if s is not None and s > F]
     tent = min(ts) if ts else None
     want = float(np.clip(tent if tent is not None else F + STOP_DEFAULT_M, F + STOP_MIN_M, F + STOP_MAX_M))
+    want = max(want, F + STOP_PREFERRED_M)                    # owner 2026-11-20: at least this far when the road allows (AFTER_STOP_M still caps S below)
     if cfg.get("stop_after_m"):                                # per stage: the stop control this far after the line (m)
         want = F + float(np.clip(float(cfg["stop_after_m"]), STOP_MIN_M, 250.0))
     end_x = float(S_all[-1])
