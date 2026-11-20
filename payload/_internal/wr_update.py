@@ -12,7 +12,7 @@ import urllib.request
 import zipfile
 from pathlib import Path, PurePosixPath
 
-VERSION = '1.6.2'
+VERSION = '1.6.3'
 # compatibility files with ACR build 26756580 (wr_compat.py); the only things an update may put under bin/
 BIN_FILES = {'acr_26756580.usmap', 'acr_affected_classes.json', 'migrate/Migrate.exe', 'migrate/Migrate.dll', 'migrate/Migrate.deps.json',
              'migrate/Migrate.runtimeconfig.json', 'migrate/UAssetAPI.dll', 'migrate/Newtonsoft.Json.dll', 'migrate/ZstdSharp.dll'}

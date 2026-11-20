@@ -1721,6 +1721,13 @@ def _patch_graph_props():
             print(f"    tyre stacks: none added ({type(e).__name__}: {e})")
         out = _own_spawners(out)
         out = _drop_hanging(out)
+        try:                                       # tyre stacks hung above ACR's ground (wr_propground.py), stage key "tyre_ground"
+            import tools.acrmod.stagectx as sc
+            import wr_propground
+            if _on(sc.cur().slug, "tyre_ground"):
+                out = wr_propground.settle(out, sc.cur().slug, TYRE_RE)
+        except Exception as e:
+            print(f"    tyre stacks on the ground: not applied ({type(e).__name__}: {e})")
         try:
             import tools.acrmod.stagectx as sc
             import wr_breakables
@@ -3625,7 +3632,7 @@ def _late_level(dst):
             log(f"wheel particles: not set ({type(e).__name__}: {e})")
     import wr_roadside
     ground = ig.make_ground_fn(shift)
-    if wr_roadside.replace_tape(cfg) or cfg.get("acr_nets") or any(wr_roadside.on(cfg, k) for k in ("brake_boards", "corner_posts")):
+    if wr_roadside.replace_tape(cfg) or __import__("wr_acrnets").options(cfg) or any(wr_roadside.on(cfg, k) for k in ("brake_boards", "corner_posts")):
         wr_roadside.add(dst, ROOT, cfg, route, shift, ground, log)
     if cfg.get("sign_lighting_m"):
         import wr_lights

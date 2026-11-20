@@ -147,6 +147,44 @@ def after_build(slug, level, mod='wrcg_stages', log=print):
     migrate_level(umap, log)
 
 
+def _folder_name(uasset):
+    """The package name in a cooked .uasset's header (FolderName), or None."""
+    import struct
+    head = Path(uasset).read_bytes()[:300]
+    i = head.find(b'/Game/')
+    if i < 4:
+        return None
+    n = struct.unpack('<i', head[i - 4:i])[0]
+    return head[i:i + n - 1].decode('latin1') if 0 < n < 250 and head[i + n - 1:i + n] == b'\0' else None
+
+
+def fix_package_names(content, log=print):
+    """Assets of our stages whose header names another package (a material instance cloned from a stock one kept the stock
+    name: retoc makes the package id from it, so all 36 far-tree materials of Ngema and Seyabei had the ids of ACR's own
+    MI_*Impostor, and the stock ones were overridden). Rewritten with their own name; the .uexp is untouched. Idempotent."""
+    content = Path(content)
+    todo = []
+    for ua in content.rglob('*.uasset'):
+        if not ua.relative_to(content).parts[1:2] or not ua.relative_to(content).parts[1].startswith('Wrcg'):
+            continue
+        want = '/Game/' + ua.relative_to(content).with_suffix('').as_posix()
+        have = _folder_name(ua)
+        if have and have != want:
+            todo.append((ua, want))
+    if not todo:
+        return 0
+    import tools.acrmod.common as c
+    with tempfile.TemporaryDirectory(prefix='wr_fn_') as temp:
+        for ua, want in todo:
+            j = Path(temp) / 'a.json'
+            c.asset_json(ua, j)
+            d = json.loads(j.read_text(encoding='utf-8'))
+            d['FolderName'] = want
+            c.write_asset(d, Path(temp) / 'a.edit.json', ua)
+    log(f'    package names fixed: {len(todo)} asset(s) carried a stock package name (e.g. {todo[0][0].name})')
+    return len(todo)
+
+
 def before_pack(args, log=print):
     """Last barrier before retoc: after-build hooks cannot be bypassed by a cache hit or a direct repack."""
     values = list(map(str, args))
@@ -166,6 +204,7 @@ def before_pack(args, log=print):
     legacy = Path(positionals[0]).resolve()
     if not legacy.is_relative_to((WORK / 'acr' / 'mods').resolve()):
         return
+    fix_package_names(legacy / 'acr' / 'Content', log)     # any ACR build
     if not prepare():
         return
     levels = sorted((legacy / 'acr' / 'Content' / 'Levels').glob('Wrcg*.umap'))

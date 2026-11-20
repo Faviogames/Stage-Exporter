@@ -114,6 +114,7 @@ def _clone(d, src_pkg, new_pkg, parent_map, out_legacy, tmp, tex_map=None):
             if name == SNOW_PARAM:
                 f["ParameterValue"]["Value"][0]["Value"].update(MASK)
                 masked = True
+    d["FolderName"] = new_pkg      # the package name retoc takes the package id from: left as the stock one, every copy collided with the stock asset
     out = Path(out_legacy) / "acr" / "Content" / (_rel(new_pkg) + ".uasset")
     out.parent.mkdir(parents=True, exist_ok=True)
     c.write_asset(d, Path(tmp) / (new_name + ".edit.json"), out)

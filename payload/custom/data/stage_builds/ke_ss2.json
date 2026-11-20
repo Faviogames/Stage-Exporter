@@ -125,7 +125,9 @@
     "2026-11-19 (owner): 3 parallel red nets at route m 3915-3950 (lateral ~4.8 / 6.5 / 9 m): cloth_skip keep_nearest 1.0 leaves only the one nearest to the road (+ their STICK01 posts dropped), and crowd_add 4 spectators in a row ('pedescontrol': they stop drivers from abusing the net) 0.8 m behind it at m 3946 (WRCG 1416.6, -921.8). Untested.",
     "2026-11-19 (owner): pedescontrol: crowd_add 3 spectators in a row 0.8 m behind the red net at route m 5658 (left side, WRCG 1689.2, -1621.6), cone_each. Untested.",
     "2026-11-19 (owner: Kenya's start marshal and red box 'not tight'): start_marshal_m 8 / start_box_shift_m 0 removed, so the universal rule applies (marshal stays at 8 m: arch at m 8 is the core's floor; the red box moves up to 3.5 m before the marshal, expected about +2.9 m: log line 'start box ... moved').",
-    "2026-11-19 (owner: the Ngema mix worked): ke_ss2 tree_meshes = same Fig/Smoketree/Baretree mix as ke_ss1 (replaces the olive -> Smoketree test). Untested here."
+    "2026-11-19 (owner: the Ngema mix worked): ke_ss2 tree_meshes = same Fig/Smoketree/Baretree mix as ke_ss1 (replaces the olive -> Smoketree test). Untested here.",
+    "2026-11-20: acr_nets TEST on m 3905-4100 only (nets true + only): WRCG red nets there become ACR BC_LargeTapeActor (orange) hung from SM_PlasticTapePoleA (origin at the base, no 1.3 scale, TapeHeight 95 / 4 rows, attach Z 100, tape hangs from the top). Reference: owner's video of a Sweden mod (separate panels, thin black poles, panels tip over). The 2026-11-16 test failed because the wooden beam was centred on the ground (half buried, net 13-93 cm) and kept its 1.3 scale. Needs a forced rebuild; not driven in game.",
+    "2026-11-20: owner: the ACR nets (plastic pole, 95 cm x 4 rows) were a success -> universal. `only` removed: every red/green net of the stage becomes ACR's; barriers m 3030-3110 kept."
   ],
   "export": {
     "vegetation": "replay",
@@ -296,7 +298,12 @@
     }
   ],
   "acr_nets": {
-    "nets": false,
+    "nets": true,
+    "pole_mesh": "SM_PlasticTapePoleA",
+    "pole_kg": 6.0,
+    "tape_height": 95.0,
+    "tape_rows": 4,
+    "attach_z": 100.0,
     "barriers": [
       {
         "from_m": 3030,

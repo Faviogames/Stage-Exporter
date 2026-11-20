@@ -22,7 +22,9 @@ import numpy as np
 import wr_finish as wf
 import wr_roadside as rs
 
-DEFAULTS = {"nets": True, "pole_kg": 9.0, "keep": [], "barriers": []}
+DEFAULTS = {"nets": True, "pole_kg": 9.0, "keep": [], "barriers": [], "only": [], "pole_mesh": "SM_PlasticTapePoleA",
+            "attach_z": 100.0, "tape_height": 95.0, "tape_rows": 4, "sag_cm": 40.0}
+POLE_PKG = "/Game/Props/RallyProps/TapePlasticPoleA/"
 PKG = "/Game/Props/RallyProps/SafetyNetting/"
 BARRIER_PKG = "/Game/Props/RallyProps/PlasticBarrierA/"
 BARRIER_LEN_M = 1.55                  # SM_PlasticBarrierAFix is 1.516 m long (x), 0.54 m wide, 0.81 m tall
@@ -33,7 +35,8 @@ _PLAN = {}
 
 
 def options(cfg):
-    o = (cfg or {}).get("acr_nets")
+    """Universal (owner 2026-11-20, Seyabei test): on for every stage; `"acr_nets": false` turns it off, a dict overrides the defaults."""
+    o = (cfg or {}).get("acr_nets", True)
     return dict(DEFAULTS, **o) if isinstance(o, dict) else (dict(DEFAULTS) if o else None)
 
 
@@ -70,6 +73,8 @@ def classify(item, cfg):
     if c == "RED" and _in(o["barriers"], m):
         return "barrier"
     if not o["nets"] or _in(o["keep"], m, str(item.get("material")).upper()):
+        return None
+    if o["only"] and not _in(o["only"], m):          # "only": route metres where WRCG's nets become ACR's (a test stretch)
         return None
     return "net"
 
@@ -166,6 +171,32 @@ def _template(source):
     raise ValueError("ACR's large net on wooden beams was not found")
 
 
+def _swap_pole(dst, actor, comp, mesh):
+    """The wooden beam of the cloned post becomes ACR's plastic tape pole (SM_PlasticTapePoleA: origin at its base, 105 cm tall):
+    no scale (the beam's 1.3 stretched the tape's particles) and no material override of the beam."""
+    import wr_rvt
+    e = dst.exp(comp)
+    sm = wr_rvt._prop(e, "StaticMesh")
+    old, new = sm["Value"], dst.ensure_import(wr_rvt._key(POLE_PKG + mesh, "StaticMesh"))
+    sm["Value"] = new
+    e["Data"] = [p for p in e["Data"] if p.get("Name") not in ("RelativeScale3D", "OverrideMaterials")]
+    for idx in (actor, comp):
+        for key, refs in dst.exp(idx).items():
+            if key.endswith("Dependencies") and refs:
+                dst.exp(idx)[key] = [new if r == old else r for r in refs]
+    dst._add_export_names(e)
+
+
+def _set_tape(comp, name, kind, value):
+    """Set (or add: the stock instances leave the class default) a float / int property of a Tape component."""
+    p = next((q for q in comp["Data"] if q.get("Name") == name), None)
+    if p is None:
+        p = {"$type": f"UAssetAPI.PropertyTypes.Objects.{kind}PropertyData, UAssetAPI", "Name": name, "ArrayIndex": 0, "PropertyGuid": None,
+             "IsZero": False, "PropertyTagFlags": "None", "PropertyTypeName": None, "PropertyTagExtensions": "NoExtension", "Value": value}
+        comp["Data"].append(p)
+    p["Value"] = value
+
+
 def add_nets(dst, source, groups, o, to_ue, ground, log):
     """groups: {'RED': items, 'GREEN': items}; returns (spans, poles)."""
     tape, c0, post_comp, post, end = _template(source)
@@ -188,6 +219,8 @@ def add_nets(dst, source, groups, o, to_ue, ground, log):
             c = rs._value(dst, a, "RootComponent")
             dst.exp(c)["Data"] = [p for p in dst.exp(c)["Data"] if p.get("Name") not in {"AttachParent", "RelativeRotation"}]
             wf._vec(dst.exp(c), "RelativeLocation").update(X=x, Y=y, Z=z)
+            if o["pole_mesh"]:
+                _swap_pole(dst, a, c, o["pole_mesh"])
             massless += 0 if _pole_mass(dst, c, float(o["pole_kg"])) else 1
             place[key] = a, c, np.array([x, y, z])
             n_poles += 1
@@ -202,6 +235,11 @@ def add_nets(dst, source, groups, o, to_ue, ground, log):
             _set_material(dst, t, mat[col], actor)
             comp = dst.exp(t)
             start_at, end_at = (wf._vec(comp, name) for name in ("RelativeLocation", "EndLocation"))
+            if o["pole_mesh"]:                    # the tape hangs from the top of the pole (ACR's narrow tapes on this pole: Z 95 of 105)
+                start_at["Z"] = end_at["Z"] = float(o["attach_z"])
+                _set_tape(comp, "TapeHeight", "Float", float(o["tape_height"]))
+                _set_tape(comp, "NumRows", "Int", int(o["tape_rows"]))
+                dst._add_export_names(comp)
             delta = q - p
             delta[2] += float(end_at["Z"]) - float(start_at["Z"])
             length = float(np.linalg.norm(delta))
@@ -209,9 +247,10 @@ def add_nets(dst, source, groups, o, to_ue, ground, log):
             for u, particle in zip(np.linspace(0, 1, len(rs._value(dst, t, "InitialParticlesPositions"))),
                                    rs._value(dst, t, "InitialParticlesPositions")):
                 x, y, z = delta * u
-                particle["Value"][0]["Value"].update(X=float(x), Y=float(y), Z=float(z - min(80, length * 0.18) * u * (1 - u)))
+                particle["Value"][0]["Value"].update(X=float(x), Y=float(y), Z=float(z - min(float(o["sag_cm"]) if o["pole_mesh"] else 80, length * 0.18) * u * (1 - u)))
             n_spans += 1
-    log(f"ACR nets: {n_spans} spans on {n_poles} wooden beams ({o['pole_kg']:g} kg each)"
+    log(f"ACR nets: {n_spans} spans on {n_poles} {o['pole_mesh'] or 'SM_WoodenNarrowBeam'} poles ({o['pole_kg']:g} kg each"
+        + (f", tape {o['tape_height']:g} cm x {o['tape_rows']} rows" if o["pole_mesh"] else "") + ")"
         + (f"; {massless} beams without a body to set the mass on" if massless else ""))
     return n_spans, n_poles
 
@@ -296,7 +335,9 @@ def main():     # self-check on synthetic pieces
     assert classify(piece(40, 0), cfg) == "barrier" and classify(piece(40, 0, "LARGENET_GREEN.PMA"), cfg) == "net"
     off = {"slug": "x", "acr_nets": {"nets": False, "barriers": [{"from_m": 30, "to_m": 50}]}}
     assert classify(piece(10, 0), off) is None and classify(piece(40, 0), off) == "barrier"
-    assert options({}) is None and options({"acr_nets": True})["pole_kg"] == 9.0
+    assert options({"acr_nets": False}) is None and options({})["pole_kg"] == 9.0 and options({"acr_nets": True})["pole_mesh"] == "SM_PlasticTapePoleA"
+    only = {"slug": "x", "acr_nets": {"only": [{"from_m": 10, "to_m": 20}]}}
+    assert classify(piece(15, 0), only) == "net" and classify(piece(40, 0), only) is None
     print("wr_acrnets self-check ok")
 
 

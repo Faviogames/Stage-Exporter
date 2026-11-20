@@ -1,0 +1,20 @@
+Stage Exporter 1.6.3
+
+INSTALACION / INSTALL
+- Manual (recomendado / recommended): Stage-Exporter-v1.6.3-Instalar.zip. Extract inside the Sando tool folder and run INSTALAR.bat.
+- Stage-Exporter-v1.6.3.zip: only for the automatic update of 1.6 clients (legacy layout, no bin/). If your ACR is build 26756580 and
+  the export says "ACR 0.7 compatibility files missing", install the -Instalar zip once.
+
+NOVEDADES / CHANGES
+- Safety nets (universal): WRCG's red and green nets become ACR's own tape on plastic poles (95 cm, 4 rows) that fall when hit.
+  "acr_nets": false in a stage build switches it off. Seyabei keeps its plastic barriers (m 3030-3110).
+- Far-tree materials: the lighter far-forest materials (wr_fartrees / snow trees) kept ACR's package name in their header, so the
+  game saw them as ACR's own MI_*Impostor and one stage's copy overrode ACR's for every stage. They now have their own names, and
+  "Actualizar pack" fixes stages already built (wr_compat.fix_package_names).
+- Tyre stacks (universal): stacks that hung up to 0.9 m above ACR's ground are set on it (wr_propground.py). "tyre_ground": false = off.
+- Kenya Seyabei: stage config updated for the new nets.
+
+NOTES
+- The net, tyre and sand changes are made when a stage is built: rebuild a stage (new export) to get them; "Actualizar pack" only
+  fixes the far-tree names.
+- Not driven in game yet: the tyre-stack height and the far-tree materials after the name fix. Report what you see.
