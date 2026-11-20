@@ -1,29 +1,32 @@
 # WRC to ACR Stage Exporter
 
-**Stage Exporter 1.6.3** es un complemento para Windows que amplía Sando Rally Stage Export Tool 0.3.7. Permite exportar tramos de WRC Generations a Assetto Corsa Rally, seleccionar qué tramos instala el pack y reutilizar los que ya están construidos.
+**Stage Exporter 1.6.3** is a Windows add-on that extends Sando Rally Stage Export Tool 0.3.7. It allows you to export stages from WRC Generations to Assetto Corsa Rally, choose which stages to include in the pack, and reuse previously built stages.
 
-## Requisitos
+## Requirements
 
-- Sando Rally Stage Export Tool **0.3.7**, instalado por separado.
-- WRC Generations y Assetto Corsa Rally instalados localmente.
-- Assetto Corsa Rally cerrado durante la instalación del pack.
+- Sando Rally Stage Export Tool **0.3.7**, installed separately.
+- WRC Generations and Assetto Corsa Rally installed locally.
+- Assetto Corsa Rally closed while installing or updating the pack.
 
-## Instalar
+## Installation
 
-Descarga [Stage-Exporter-v1.6.3-Instalar.zip](https://github.com/Faviogames/Stage-Exporter/releases/download/v1.6.3/Stage-Exporter-v1.6.3-Instalar.zip). Extrae su contenido directamente dentro de la carpeta de Sando: deben quedar `payload/`, `INSTALAR.bat` y las guías en ese nivel, sin otra carpeta contenedora.
+Download [Stage-Exporter-v1.6.3-Instalar.zip](https://github.com/Faviogames/Stage-Exporter/releases/download/v1.6.3/Stage-Exporter-v1.6.3-Instalar.zip). Extract its contents directly into your Sando folder: `payload/`, `INSTALAR.bat`, and the guides must sit at the root level of that folder, without an extra wrapper folder.
 
-Ejecuta `INSTALAR.bat` en la carpeta de Sando. Si el instalador no detecta la ruta automáticamente, selecciona la carpeta que contiene `_internal\wrcg2acr-worker.exe`. El instalador genera **WRC to ACR Stage Exporter.exe** en la carpeta de Sando. Abre ese ejecutable tras finalizar la instalación.
+Run `INSTALAR.bat` inside the Sando folder. If the installer does not detect the path automatically, select the folder containing `_internal\wrcg2acr-worker.exe`. Once finished, the installer generates **WRC to ACR Stage Exporter.exe** inside the Sando folder. Launch that executable.
 
-En la ventana **Stage Exporter**, elige un tramo y pulsa **Exportar tramo**. Usa **Actualizar pack** para instalar los tramos marcados. El pack se guarda en `acr/Content/Paks/~mods` y las exportaciones aparecen en el juego bajo `[MOD] <país>`.
+In the **Stage Exporter** window, select a stage and click **Exportar tramo** (*Export Stage*). Use **Actualizar pack** (*Update Pack*) to install the checked or imported stages. The pack is saved to `acr/Content/Paks/~mods`, and exported stages appear in-game under `[MOD] <country>`.
 
-Este repositorio contiene el código y la configuración del complemento. El núcleo de Sando y los recursos de los juegos se usan desde las instalaciones locales. La compatibilidad de los tramos depende del inventario de esta versión.
+This repository contains the add-on's source code and configuration files. The Sando core and game assets are loaded from your local installations. Stage compatibility depends on the inventory included in this release.
 
-Consulta [README_INSTALLER.txt](README_INSTALLER.txt) para más detalles.
+See [README_INSTALLER.txt](README_INSTALLER.txt) for more details.
 
-## Actualizaciones
+## Updates
 
-Desde la versión 1.6, la aplicación comprueba la última release de GitHub en cada inicio. Si hay una versión estable más reciente, pregunta si deseas instalarla y reiniciar. La descarga se verifica mediante SHA-256 de GitHub; si no hay conexión, puedes seguir usando el programa. Se conservan las configuraciones existentes, imágenes, descripciones, cachés y tramos; se incorporan los archivos de configuración que falten.
+Latest version support auto update when launch (normally)
+ACR 0.37 ready!
+a bunch of fixes and a lot of hours i dont even remember.
 
-Los usuarios de 1.5 o anteriores, y quienes tengan ACR 26756580, deben instalar 1.6.3 manualmente (ZIP `-Instalar`). Los cambios visuales en mapas requieren reconstruir el tramo; actualizar la aplicación o el pack no reconstruye las cachés antiguas.
 
-La versión 1.6.3 acepta ZIPs directos y el formato anterior. El archivo sin el sufijo `-Instalar` es un paquete de compatibilidad para el actualizador 1.6; para instalación manual usa el enlace anterior.
+# WARNING
+The more stages you generate the bigger grows the .work folder on your drive make sure you have a lot of space for it! (30gb at least) and even more if you want to generate all the stages!
+the final .pak files that goes into ACR is way less size! Deleting everything from the project or .work folder means you wont be able to generate the maps faster if you have the .stage files is different you can save a lot of time, so make sure to upload those ones to the cloud! or even better share to the comunity on Overtake!
