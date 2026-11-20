@@ -1,4 +1,4 @@
-Stage Exporter 1.6.3 - installation
+Stage Exporter 1.6.4 - installation
 Download the ZIP ending in -Instalar.zip and extract its CONTENTS directly into the Sando tool folder. You must see payload/ and INSTALAR.bat alongside Sando-Rally-Stage-Export-Tool.exe. Then run INSTALAR.bat. No enclosing Stage Exporter folder is needed.
 The ZIP without -Instalar is a compatibility package for automatic updates from 1.6.
 

@@ -1,6 +1,6 @@
 # WRC to ACR Stage Exporter
 
-**Stage Exporter 1.6.3** is a Windows add-on that extends Sando Rally Stage Export Tool 0.3.7. It allows you to export stages from WRC Generations to Assetto Corsa Rally, choose which stages to include in the pack, and reuse previously built stages.
+**Stage Exporter 1.6.4** is a Windows add-on that extends Sando Rally Stage Export Tool 0.3.7. It allows you to export stages from WRC Generations to Assetto Corsa Rally, choose which stages to include in the pack, and reuse previously built stages.
 
 ## Requirements
 
@@ -10,7 +10,7 @@
 
 ## Installation
 
-Download [Stage-Exporter-v1.6.3-Instalar.zip](https://github.com/Faviogames/Stage-Exporter/releases/download/v1.6.3/Stage-Exporter-v1.6.3-Instalar.zip). Extract its contents directly into your Sando folder: `payload/`, `INSTALAR.bat`, and the guides must sit at the root level of that folder, without an extra wrapper folder.
+Download [Stage-Exporter-v1.6.4-Instalar.zip](https://github.com/Faviogames/Stage-Exporter/releases/download/v1.6.4/Stage-Exporter-v1.6.4-Instalar.zip). Extract its contents directly into your Sando folder: `payload/`, `INSTALAR.bat`, and the guides must sit at the root level of that folder, without an extra wrapper folder.
 
 Run `INSTALAR.bat` inside the Sando folder. If the installer does not detect the path automatically, select the folder containing `_internal\wrcg2acr-worker.exe`. Once finished, the installer generates **WRC to ACR Stage Exporter.exe** inside the Sando folder. Launch that executable.
 

@@ -48,7 +48,33 @@ def prepare():
     missing = [str(BIN / p) for p in files if not (BIN / p).is_file()]
     if missing:
         raise RuntimeError('ACR 0.7 compatibility files missing (install Stage-Exporter-<version>-Instalar.zip, it carries bin/): ' + ', '.join(missing))
+    oval_template()
     return True
+
+
+def oval_template(log=print):
+    """The core's BakedDataContainer template is a test asset (tests/FeatureTests/ExampleCutscenesAuthoring) that build
+    26756580 no longer ships: the extraction leaves a hole and build_stage dies in UaTool dumpjson. Same class, so the
+    smallest stock BakedData (main menu) stands in for it. UNVERIFIED that the core accepts it."""
+    dst = WORK / 'acr' / 'legacy_hs' / 'acr' / 'Content' / 'tests' / 'FeatureTests' / 'ExampleCutscenesAuthoring'
+    name = 'DA_oval_cutscene_authoringBakedData'
+    if (dst / (name + '.uasset')).is_file():
+        return
+    shipped = BIN / 'oval'
+    if all((shipped / (name + e)).is_file() for e in ('.uasset', '.uexp')):
+        dst.mkdir(parents=True, exist_ok=True)
+        for e in ('.uasset', '.uexp'):
+            shutil.copyfile(shipped / (name + e), dst / (name + e))
+        log('    BakedData template of the core restored from bin/oval')
+        return
+    with tempfile.TemporaryDirectory() as tmp:
+        subprocess.run([str(BIN / 'retoc' / 'retoc.exe'), 'to-legacy', str(_paks()), tmp, '-f', 'DA_MainMenuWalesBakedData',
+                        '--version', 'UE5_6', '--no-shaders', '--no-script-objects'], check=True, capture_output=True)
+        src = next(Path(tmp).rglob('DA_MainMenuWalesBakedData.uasset'))
+        dst.mkdir(parents=True, exist_ok=True)
+        for ext in ('.uasset', '.uexp'):
+            shutil.copyfile(src.with_suffix(ext), dst / (name + ext))
+    log('    BakedData template of the core missing in this ACR build: stock main-menu BakedData used instead')
 
 
 def _twins(log):

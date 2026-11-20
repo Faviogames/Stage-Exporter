@@ -1,0 +1,15 @@
+Stage Exporter 1.6.4  (URGENT FIX)
+
+INSTALACION / INSTALL
+- Manual (recomendado / recommended): Stage-Exporter-v1.6.4-Instalar.zip. Extract inside the Sando tool folder and run INSTALAR.bat.
+- Stage-Exporter-v1.6.4.zip: only for the automatic update of 1.6 clients (legacy layout, no bin/). If the export says
+  "ACR 0.7 compatibility files missing" or fails in build_stage with "DA_oval_cutscene_authoringBakedData.uasset ... DirectoryNotFoundException",
+  install the -Instalar zip once.
+
+FIX
+- Clean installs with Assetto Corsa Rally build 26756580 failed in build_stage: the core needs a test asset
+  (DA_oval_cutscene_authoringBakedData) that this ACR build no longer ships. The -Instalar zip now carries it in bin/oval and
+  wr_compat restores it when missing.
+
+ALSO (already on main since f5b16f3)
+- Savalla fixes, universal 49 m start lane, start marshal/box rules, stop control >= 70 m, NET_ORANGE nets in ACR orange.
